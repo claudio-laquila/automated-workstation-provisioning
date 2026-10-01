@@ -13,3 +13,4 @@ Cada etapa fica em um script independente dentro de `scripts\`. O orquestrador i
 
 
 Os arquivos `autounattend.xml` continuam responsáveis pela instalação do Windows e particionamento. A camada modular deve ser executada após a instalação, sem misturar lógica de particionamento com configuração pós-instalação.
+
