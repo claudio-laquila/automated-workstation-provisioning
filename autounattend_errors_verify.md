@@ -1,7 +1,7 @@
 # Verificação dos arquivos autounattend.xml
 
 - Análise original: 2026-09-25
-- Última revisão: 2026-09-30
+- Última revisão: 2026-10-02
 
 Escopo: os 5 arquivos `autounattend.xml` em `Arquivos de autounattend\`. O foco está no arquivo que o CLAUDE.md define como padrão do projeto:
 
@@ -52,7 +52,7 @@ Situação das demais contas:
 | 1 | 🔴 | Senha da conta administradora gravada no XML | 🔶 Parcial | Todos os 5 |
 | 2 | 🔴 | Conta `Admin` (Administrators) com senha vazia | ✅ Resolvido | — |
 | 3 | 🔴 | `SELECT DISK=0` fixo, sem nenhuma validação do disco | ❌ Aberto | Os 4 que particionam automaticamente |
-| 4 | 🟠 | Nenhuma chamada aos scripts do projeto (`scripts\init.ps1`) | 🔶 Parcial | Os 4 que não são o XML da raiz |
+| 4 | 🟠 | Nenhuma chamada aos scripts do projeto (`scripts\init.ps1`) | 🔶 Parcial | `MBR\`, `GPT\` e `GPT\Custom diskpart\` |
 | 5 | 🟠 | Os scripts do pendrive não são copiados para o disco (`$OEM$` ignorado) | ❌ Aberto | Os 4 com `PEMode=Generated` |
 | 6 | 🟠 | O AutoLogon vale só para 1 logon, sem retomada após reboot | ❌ Aberto | Todos os 5 |
 | 7 | 🟡 | 5 variantes de XML sem definição de qual é a oficial | ❌ Aberto | Pasta inteira |
@@ -80,6 +80,7 @@ Totais: 2 resolvidos, 2 parciais, 13 abertos.
 | 2026-09-25 | — | O script embutido de primeiro logon foi renomeado de `FirstLogon.ps1` para `First-Logon.ps1` nos 5 arquivos (comando, `File path` e log). |
 | 2026-09-30 | 1 | Senha antiga substituída por uma senha temporária de provisionamento, gravada em Base64 com `PlainText=false` em `<LocalAccount>` e `<AutoLogon>`. `AccountPassword0` removido da URL do comentário. |
 | 2026-09-30 | 13 | Conta `User` removida dos 5 arquivos. Resta apenas `laquila`. |
+| 2026-10-02 | 4 | XML principal passou a chamar `scripts\init.ps1` do pendrive no fim do `First-Logon.ps1` embutido (mesmo bloco do XML da raiz). |
 
 ---
 
@@ -144,9 +145,10 @@ O WinPE padrão não tem PowerShell. A checagem pode ser feita com `diskpart` + 
 | Arquivo | Chama `scripts\init.ps1`? |
 |---|---|
 | XML da raiz | ✅ Sim: linhas 143–152, no fim do `First-Logon.ps1` embutido |
-| XML principal e as outras 3 variantes | ❌ Não. O `First-Logon.ps1` embutido (XML principal, linhas 286–315) apenas zera o `AutoLogonCount` e apaga `unattend.xml`, `unattend-original.xml` e `Wifi.xml` |
+| XML principal | ✅ Sim: linhas 298–307, no fim do `First-Logon.ps1` embutido |
+| `MBR\`, `GPT\` e `GPT\Custom diskpart\` | ❌ Não. O `First-Logon.ps1` embutido apenas zera o `AutoLogonCount` e apaga `unattend.xml`, `unattend-original.xml` e `Wifi.xml` |
 
-**Como funciona no XML da raiz:**
+**Como funciona (XML da raiz e XML principal):**
 
 1. Procura `scripts\init.ps1` em todas as unidades.
 2. Executa o arquivo direto do pendrive, sem copiar para o disco, com `-ExecutionPolicy Bypass`.
@@ -154,7 +156,7 @@ O WinPE padrão não tem PowerShell. A checagem pode ser feita com `diskpart` + 
 
 **Pendências:**
 
-- Levar a chamada para o XML que for definido como oficial (ver item 7).
+- Testar a chamada em uma VM, de ponta a ponta.
 - Copiar a automação para `C:\ProgramData\WorkstationProvisioning\` antes de executar. Isso tira a dependência do pendrive depois do primeiro logon e é pré-requisito do item 6.
 
 ---
@@ -196,15 +198,15 @@ O `pe.cmd` detecta a pasta `$OEM$` e grava o caminho na variável `OEM_FOLDER`, 
 | `...\MBR\` | Automático, MBR | Ativa | Não | Incompatível com UEFI |
 | `...\GPT\` | Automático, GPT | Ativa | Não | Falha com disco já particionado |
 | `...\GPT\Custom diskpart\` | Diskpart customizado | Ativa | Não | Falha com disco já particionado |
-| `...\GPT\Custom diskpart\No Assertions about the disk\` | Diskpart customizado | Desativada | Não | **Padrão segundo o CLAUDE.md** |
+| `...\GPT\Custom diskpart\No Assertions about the disk\` | Diskpart customizado | Desativada | Sim | **Padrão segundo o CLAUDE.md** |
 
 **Por que é um problema:**
 
 - Há risco de copiar o arquivo errado para o pendrive.
 - Cada correção precisa ser repetida nos 5 arquivos.
-- Os arquivos já estão divergindo: a chamada ao `init.ps1` só existe no XML da raiz, e o XML padrão não particiona sozinho.
+- Os arquivos já estão divergindo: a chamada ao `init.ps1` só existe em 2 das 5 variantes.
 
-**Correção sugerida:** manter um único `autounattend.xml` oficial, combinando o particionamento do XML principal com a chamada ao `init.ps1`. As outras variantes podem ir para uma pasta `archive\` ou ser removidas.
+**Correção sugerida:** adotar o XML principal como oficial, já que ele particiona sozinho e chama o `init.ps1`. As outras variantes podem ir para uma pasta `archive\` ou ser removidas.
 
 ---
 
@@ -212,7 +214,7 @@ O `pe.cmd` detecta a pasta `$OEM$` e grava o caminho na variável `OEM_FOLDER`, 
 
 **Onde:** XML da raiz, com `PEMode=Default` e sem configuração de disco (`DiskConfiguration`).
 
-**Por que é um problema:** o Windows Setup vai parar na tela de escolha de partição, o que contraria o objetivo de instalação totalmente unattended. Hoje ele é o único XML que chama o `init.ps1`, então é o que tem mais chance de ser usado.
+**Por que é um problema:** o Windows Setup vai parar na tela de escolha de partição, o que contraria o objetivo de instalação totalmente unattended. Como tem o nome e o local mais óbvios, é o que tem mais chance de ser copiado para o pendrive por engano.
 
 **Correção sugerida:** ver item 7.
 
