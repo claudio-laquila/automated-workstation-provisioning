@@ -81,6 +81,7 @@ Totais: 2 resolvidos, 2 parciais, 13 abertos.
 | 2026-09-30 | 1 | Senha antiga substituída por uma senha temporária de provisionamento, gravada em Base64 com `PlainText=false` em `<LocalAccount>` e `<AutoLogon>`. `AccountPassword0` removido da URL do comentário. |
 | 2026-09-30 | 13 | Conta `User` removida dos 5 arquivos. Resta apenas `laquila`. |
 | 2026-10-02 | 4 | XML principal passou a chamar `scripts\init.ps1` do pendrive no fim do `First-Logon.ps1` embutido (mesmo bloco do XML da raiz). |
+| 2026-10-05 | 4 | Os 2 XMLs passaram a abrir o orquestrador em janela própria e visível (`Start-Process`). |
 
 ---
 
@@ -151,8 +152,8 @@ O WinPE padrão não tem PowerShell. A checagem pode ser feita com `diskpart` + 
 **Como funciona (XML da raiz e XML principal):**
 
 1. Procura `scripts\init.ps1` em todas as unidades.
-2. Executa o arquivo direto do pendrive, sem copiar para o disco, com `-ExecutionPolicy Bypass`.
-3. Registra o exit code no `First-Logon.log`.
+2. Abre o arquivo em uma **janela própria e visível** (`Start-Process`), direto do pendrive, sem copiar para o disco, com `-ExecutionPolicy Bypass`. A janela mostra a etapa atual e fica aberta até o técnico pressionar ENTER.
+3. Registra no `First-Logon.log` apenas que o `init.ps1` foi iniciado (PID). O resultado de cada etapa fica no `deployment.log`.
 
 **Pendências:**
 

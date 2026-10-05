@@ -29,7 +29,7 @@ Na tabela, **`SI\`** abrevia `Arquivos de autounattend\Sem interação com parti
 - Primeiro logon: executa `C:\Windows\Setup\Scripts\First-Logon.ps1`, que:
   - zera o `AutoLogonCount`;
   - apaga o `unattend.xml` de `C:\Windows\Panther`;
-  - nas variantes que chamam o `init.ps1`, procura `scripts\init.ps1` no pendrive e o executa.
+  - nas variantes que chamam o `init.ps1`, procura `scripts\init.ps1` no pendrive e o abre em uma janela própria e visível, que mostra a etapa atual do provisionamento.
 
 ## Uso no pendrive
 

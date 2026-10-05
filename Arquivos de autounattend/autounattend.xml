@@ -143,9 +143,8 @@ $scripts = @(
 	{
 		$init = Get-PSDrive -PSProvider 'FileSystem' | ForEach-Object { Join-Path -Path $_.Root -ChildPath 'scripts\init.ps1'; } | Where-Object { Test-Path -LiteralPath $_; } | Select-Object -First 1;
 		if( $init ) {
-			"Executando $init";
-			&amp; powershell.exe -NoProfile -ExecutionPolicy 'Bypass' -File $init;
-			"init.ps1 finalizado com exit code $LASTEXITCODE";
+			$process = Start-Process -FilePath 'powershell.exe' -ArgumentList @( '-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', "`"$init`"" ) -WindowStyle 'Normal' -PassThru;
+			"init.ps1 iniciado em janela propria (PID $($process.Id)): $init";
 		} else {
 			'init.ps1 nao encontrado em nenhuma unidade (esperado: scripts\init.ps1 na raiz do pendrive).';
 		}
