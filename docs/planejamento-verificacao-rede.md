@@ -19,7 +19,7 @@ Nesta entrega, a etapa de Windows Update é criada **sem implementação** (apen
 ```text
 autounattend.xml
   └─ First-Logon.ps1 (embutido)        ← já existe
-       └─ scripts\init.ps1 → Init       ← já existe
+       └─ scripts\Start-Provisioning.ps1 → Start-Provisioning       ← já existe
             ├─ 1. First-Logon.ps1       ← já existe (acesso fake)
             ├─ 2. Aguardar internet     ← NOVO: Test-InternetConnection em loop
             └─ 3. Install-WindowsUpdates.ps1  ← NOVO: estrutura sem implementação
@@ -28,7 +28,7 @@ autounattend.xml
 A verificação **não** é uma etapa isolada como as outras, e sim uma **condição de avanço** controlada pelo orquestrador:
 
 - **`Test-InternetConnection`** só responde a pergunta "há internet agora?" e retorna `$true` ou `$false`. Não espera e não decide nada.
-- **`Init`** decide o fluxo e repete a verificação até a resposta ser `$true`. Só então chama a próxima etapa.
+- **`Start-Provisioning`** decide o fluxo e repete a verificação até a resposta ser `$true`. Só então chama a próxima etapa.
 
 Assim a função fica simples de testar isoladamente, e a regra "não avançar sem rede" fica em um único lugar, o orquestrador.
 
@@ -38,8 +38,8 @@ Assim a função fica simples de testar isoladamente, e a regra "não avançar s
 |---|---|---|
 | `scripts\Test-InternetConnection.ps1` | Novo | Função `Test-InternetConnection` → `[bool]`. Executado diretamente, imprime o resultado e sai com exit code 0 (conectado) ou 1 (sem conexão), para troubleshooting. |
 | `scripts\Install-WindowsUpdates.ps1` | Novo | Função `Install-WindowsUpdates` sem implementação: registra no log que a etapa está pendente e sai com exit code 0. |
-| `scripts\init.ps1` | Alterado | `Init` passa a ter 3 passos; novas funções `Wait-InternetConnection` (loop de espera), `Show-Step` (cabeçalho e título da janela) e `Show-NetworkHelp` (instruções ao técnico). |
-| `autounattend.xml` (raiz e `No Assertions about the disk\`) | Alterado | O `init.ps1` passa a ser aberto em janela própria e visível (`Start-Process`). |
+| `scripts\Start-Provisioning.ps1` | Alterado | `Start-Provisioning` passa a ter 3 passos; novas funções `Wait-InternetConnection` (loop de espera), `Show-Step` (cabeçalho e título da janela) e `Show-NetworkHelp` (instruções ao técnico). |
+| `autounattend.xml` (raiz e `No Assertions about the disk\`) | Alterado | O `Start-Provisioning.ps1` passa a ser aberto em janela própria e visível (`Start-Process`). |
 
 Os nomes seguem o CLAUDE.md e o `naming.md`: arquivo e função no padrão `Verb-Noun`, com os verbos aprovados `Test`, `Wait` e `Install`.
 
@@ -63,7 +63,7 @@ A verificação tem duas camadas, da mais barata para a mais confiável. Ela par
 
 **Retorno:** `$true` só se as duas camadas passarem. Nenhuma exceção escapa da função: qualquer erro vira `$false` com o motivo registrado em log, sem ser ignorado em silêncio.
 
-## 5. `Wait-InternetConnection` (no `init.ps1`): como aguardar
+## 5. `Wait-InternetConnection` (no `Start-Provisioning.ps1`): como aguardar
 
 ```text
 loop:
@@ -93,7 +93,7 @@ Parâmetros, com valores padrão no código nesta entrega e migração para `con
 | # | Decisão | Resultado |
 |---|---|---|
 | D1 | Sem conexão, aguardar **para sempre** ou desistir após um tempo? | ✅ **Aprovado: aguardar para sempre**, até o técnico conectar o cabo ou fazer login na rede. Não há parâmetro de timeout. |
-| D2 | O técnico precisa ver em qual etapa o provisionamento está? | ✅ **Aprovado: janela visível em todas as etapas.** O XML abre o `init.ps1` com `Start-Process`, sem `-Wait`, para não segurar o primeiro logon. A janela mostra o título "Provisionamento \| Etapa N de 3 - …", um cabeçalho por etapa, instruções em amarelo quando não há rede e barra de progresso com a última tentativa. Ao final, mostra o resultado e aguarda ENTER. |
+| D2 | O técnico precisa ver em qual etapa o provisionamento está? | ✅ **Aprovado: janela visível em todas as etapas.** O XML abre o `Start-Provisioning.ps1` com `Start-Process`, sem `-Wait`, para não segurar o primeiro logon. A janela mostra o título "Provisionamento \| Etapa N de 3 - …", um cabeçalho por etapa, instruções em amarelo quando não há rede e barra de progresso com a última tentativa. Ao final, mostra o resultado e aguarda ENTER. |
 | D3 | Wi-Fi: o XML não configura nenhuma rede Wi-Fi (`WifiMode=Skip`). | Considerar apenas **cabo** por enquanto e documentar isso. Se Wi-Fi for necessário, avaliar perfil Wi-Fi no XML, que exige cuidado com a senha da rede. |
 | D4 | Proxy corporativo: se a internet só funcionar via proxy autenticado, a camada 2 falha. | Confirmar com a infraestrutura se a rede de provisionamento tem saída direta. Se não tiver, tratar o proxy em uma etapa própria. |
 
@@ -111,15 +111,15 @@ Parâmetros, com valores padrão no código nesta entrega e migração para `con
 | Rodar `scripts\Test-InternetConnection.ps1` com internet | Imprime `True`, exit code 0 |
 | Mesmo script com o cabo desconectado | Imprime `False`, motivo "sem rede local", exit code 1 |
 | VM com rede, mas sem gateway ou DNS válido | `False`, motivo "sem internet" |
-| `init.ps1` iniciado sem rede, cabo conectado após 1 minuto | Log mostra a espera e depois "Conexão detectada". Só então aparece "Iniciando etapa: Install-WindowsUpdates" |
+| `Start-Provisioning.ps1` iniciado sem rede, cabo conectado após 1 minuto | Log mostra a espera e depois "Conexão detectada". Só então aparece "Iniciando etapa: Install-WindowsUpdates" |
 | Rede que exige login (portal cativo) | Continua aguardando, com o motivo "provável portal de login". Depois do login no navegador, avança sozinho. |
 
 Resultados em 2026-10-05, Windows PowerShell 5.1, com o log em pasta temporária:
 
 - **Execução direta com internet:** `True`, exit code 0.
 - **Endereço de teste inválido:** retorno `False` (tipo `Boolean`), com o motivo informado.
-- **`init.ps1` com internet:** as 3 etapas na ordem, exit code 0.
-- **`init.ps1` com conexão simulada que falha 2 vezes:** aguardou, registrou o aviso uma única vez e só iniciou a etapa 3 depois da conexão.
+- **`Start-Provisioning.ps1` com internet:** as 3 etapas na ordem, exit code 0.
+- **`Start-Provisioning.ps1` com conexão simulada que falha 2 vezes:** aguardou, registrou o aviso uma única vez e só iniciou a etapa 3 depois da conexão.
 - **Ainda não testado:** a janela visível (títulos, cores e ENTER no final). Isso deve ser conferido na VM.
 
 Os testes com e sem cabo devem ser feitos em VM, desconectando o adaptador virtual.

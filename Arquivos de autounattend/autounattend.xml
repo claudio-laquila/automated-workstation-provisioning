@@ -141,12 +141,12 @@ $scripts = @(
 		) -Force -ErrorAction 'SilentlyContinue' -Verbose;
 	};
 	{
-		$init = Get-PSDrive -PSProvider 'FileSystem' | ForEach-Object { Join-Path -Path $_.Root -ChildPath 'scripts\init.ps1'; } | Where-Object { Test-Path -LiteralPath $_; } | Select-Object -First 1;
-		if( $init ) {
-			$process = Start-Process -FilePath 'powershell.exe' -ArgumentList @( '-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', "`"$init`"" ) -WindowStyle 'Normal' -PassThru;
-			"init.ps1 iniciado em janela propria (PID $($process.Id)): $init";
+		$provisioningScript = Get-PSDrive -PSProvider 'FileSystem' | ForEach-Object { Join-Path -Path $_.Root -ChildPath 'scripts\Start-Provisioning.ps1'; } | Where-Object { Test-Path -LiteralPath $_; } | Select-Object -First 1;
+		if( $provisioningScript ) {
+			$process = Start-Process -FilePath 'powershell.exe' -ArgumentList @( '-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', "`"$provisioningScript`"" ) -WindowStyle 'Normal' -PassThru;
+			"Start-Provisioning.ps1 iniciado em janela propria (PID $($process.Id)): $provisioningScript";
 		} else {
-			'init.ps1 nao encontrado em nenhuma unidade (esperado: scripts\init.ps1 na raiz do pendrive).';
+			'Start-Provisioning.ps1 nao encontrado em nenhuma unidade (esperado: scripts\Start-Provisioning.ps1 na raiz do pendrive).';
 		}
 	};
 );

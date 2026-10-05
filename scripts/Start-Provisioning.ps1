@@ -116,7 +116,7 @@ function Invoke-Stage {
     Write-Log "Etapa concluída: $Name"
 }
 
-function Init {
+function Start-Provisioning {
     Write-Log '==== Início do provisionamento ===='
 
     Show-Step -Number 1 -Name 'Primeiro logon'
@@ -135,7 +135,7 @@ New-Item -ItemType Directory -Force -Path $logDir | Out-Null
 
 $exitCode = 0
 try {
-    Init
+    Start-Provisioning
     $Host.UI.RawUI.WindowTitle = 'Provisionamento | Concluído'
     Write-Host ''
     Write-Host '  PROVISIONAMENTO CONCLUÍDO.' -ForegroundColor Green

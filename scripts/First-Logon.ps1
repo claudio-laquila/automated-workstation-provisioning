@@ -1,5 +1,5 @@
 # Etapa de primeiro logon.
-# Executada pelo init.ps1. A saida (Write-Output) e registrada no deployment.log pelo orquestrador.
+# Executada pelo Start-Provisioning.ps1. A saida (Write-Output) e registrada no deployment.log pelo orquestrador.
 # Exit code: 0 = sucesso, 1 = falha.
 
 $ErrorActionPreference = 'Stop'

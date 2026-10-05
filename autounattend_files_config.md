@@ -8,13 +8,13 @@ Comparação entre as 5 variantes de `autounattend.xml` em `Arquivos de autounat
 
 Na tabela, **`SI\`** abrevia `Arquivos de autounattend\Sem interação com partição de disco\`. Todos os arquivos se chamam `autounattend.xml`.
 
-| Caminho | Particionamento | Verifica o disco antes? | Continua se o disco já tem partições? | Chama o `init.ps1`? | Remove apps desnecessários? | Observações |
+| Caminho | Particionamento | Verifica o disco antes? | Continua se o disco já tem partições? | Chama o `Start-Provisioning.ps1`? | Remove apps desnecessários? | Observações |
 |---|---|---|---|---|---|---|
 | `Arquivos de autounattend\` (raiz) | Manual: o técnico escolhe a partição na tela | Não | Sim, depois da escolha manual | ✅ Sim | ❌ Não | Única com chave de produto (a genérica de instalação do Pro). Não é totalmente automática. |
 | `SI\MBR\` | Automático, **MBR**, com partição Recovery | Sim | ❌ Não, falha com erro | ❌ Não | ❌ Não | Incompatível com UEFI e Windows 11. |
 | `SI\GPT\` | Automático, **GPT**, com o layout padrão do gerador | Sim | ❌ Não, falha com erro | ❌ Não | ❌ Não | — |
 | `SI\GPT\Custom diskpart\` | **Diskpart do projeto**, GPT: EFI 300 MB, MSR 16 MB, Windows, Recovery ~1000 MB | Sim | ❌ Não, falha com erro | ❌ Não | ❌ Não | Esta é a falha registrada no CLAUDE.md. |
-| `SI\GPT\Custom diskpart\No Assertions about the disk\` | **Diskpart do projeto**, GPT, mesmo layout do anterior | Não | ✅ Sim, apaga o Disk 0 inteiro | ✅ Sim | ✅ Sim: apps Xbox e Game DVR | **Padrão segundo o CLAUDE.md.** Única variante totalmente automática que chama o `init.ps1`. |
+| `SI\GPT\Custom diskpart\No Assertions about the disk\` | **Diskpart do projeto**, GPT, mesmo layout do anterior | Não | ✅ Sim, apaga o Disk 0 inteiro | ✅ Sim | ✅ Sim: apps Xbox e Game DVR | **Padrão segundo o CLAUDE.md.** Única variante totalmente automática que chama o `Start-Provisioning.ps1`. |
 
 **Atenção:** as variantes automáticas sempre usam o Disk 0, sem confirmar se é o disco certo. Na variante que não verifica o disco, isso significa que o Disk 0 é apagado mesmo que seja o pendrive ou um segundo disco.
 
@@ -29,7 +29,7 @@ Na tabela, **`SI\`** abrevia `Arquivos de autounattend\Sem interação com parti
 - Primeiro logon: executa `C:\Windows\Setup\Scripts\First-Logon.ps1`, que:
   - zera o `AutoLogonCount`;
   - apaga o `unattend.xml` de `C:\Windows\Panther`;
-  - nas variantes que chamam o `init.ps1`, procura `scripts\init.ps1` no pendrive e o abre em uma janela própria e visível, que mostra a etapa atual do provisionamento.
+  - nas variantes que chamam o `Start-Provisioning.ps1`, procura `scripts\Start-Provisioning.ps1` no pendrive e o abre em uma janela própria e visível, que mostra a etapa atual do provisionamento.
 
 ## Uso no pendrive
 
@@ -38,4 +38,4 @@ O Windows Setup só reconhece o arquivo se ele se chamar exatamente `autounatten
 Na pasta do projeto, os arquivos e pastas podem ter qualquer nome. Ao preparar o pendrive:
 
 1. Copie **apenas uma** variante para a raiz do pendrive, com o nome `autounattend.xml`.
-2. Copie a pasta `scripts\` para a raiz do pendrive. É de lá que o primeiro logon executa o `init.ps1`.
+2. Copie a pasta `scripts\` para a raiz do pendrive. É de lá que o primeiro logon executa o `Start-Provisioning.ps1`.

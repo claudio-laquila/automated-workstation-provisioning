@@ -1,5 +1,5 @@
 ﻿# Etapa de Windows Update.
-# Executada pelo init.ps1 somente depois que Test-InternetConnection confirmar acesso à internet.
+# Executada pelo Start-Provisioning.ps1 somente depois que Test-InternetConnection confirmar acesso à internet.
 # A saída (Write-Output) é exibida na janela do provisionamento e registrada no deployment.log pelo orquestrador.
 # Exit code: 0 = sucesso, 1 = falha.
 #

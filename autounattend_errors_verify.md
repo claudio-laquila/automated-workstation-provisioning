@@ -52,7 +52,7 @@ Situação das demais contas:
 | 1 | 🔴 | Senha da conta administradora gravada no XML | 🔶 Parcial | Todos os 5 |
 | 2 | 🔴 | Conta `Admin` (Administrators) com senha vazia | ✅ Resolvido | — |
 | 3 | 🔴 | `SELECT DISK=0` fixo, sem nenhuma validação do disco | ❌ Aberto | Os 4 que particionam automaticamente |
-| 4 | 🟠 | Nenhuma chamada aos scripts do projeto (`scripts\init.ps1`) | 🔶 Parcial | `MBR\`, `GPT\` e `GPT\Custom diskpart\` |
+| 4 | 🟠 | Nenhuma chamada aos scripts do projeto (`scripts\Start-Provisioning.ps1`) | 🔶 Parcial | `MBR\`, `GPT\` e `GPT\Custom diskpart\` |
 | 5 | 🟠 | Os scripts do pendrive não são copiados para o disco (`$OEM$` ignorado) | ❌ Aberto | Os 4 com `PEMode=Generated` |
 | 6 | 🟠 | O AutoLogon vale só para 1 logon, sem retomada após reboot | ❌ Aberto | Todos os 5 |
 | 7 | 🟡 | 5 variantes de XML sem definição de qual é a oficial | ❌ Aberto | Pasta inteira |
@@ -82,6 +82,7 @@ Totais: 2 resolvidos, 2 parciais, 13 abertos.
 | 2026-09-30 | 13 | Conta `User` removida dos 5 arquivos. Resta apenas `laquila`. |
 | 2026-10-02 | 4 | XML principal passou a chamar `scripts\init.ps1` do pendrive no fim do `First-Logon.ps1` embutido (mesmo bloco do XML da raiz). |
 | 2026-10-05 | 4 | Os 2 XMLs passaram a abrir o orquestrador em janela própria e visível (`Start-Process`). |
+| 2026-10-05 | — | Orquestrador renomeado de `scripts\init.ps1` (função `Init`) para `scripts\Start-Provisioning.ps1` (função `Start-Provisioning`), seguindo o padrão `Verb-Noun` do `naming.md`. Os 2 XMLs que o chamam foram atualizados. |
 
 ---
 
@@ -107,7 +108,7 @@ Totais: 2 resolvidos, 2 parciais, 13 abertos.
 
 **Pendências:**
 
-1. Criar uma etapa no `init.ps1` que troque a senha temporária por uma senha aleatória logo no início do provisionamento.
+1. Criar uma etapa no `Start-Provisioning.ps1` que troque a senha temporária por uma senha aleatória logo no início do provisionamento.
 2. Após o ingresso no domínio, gerenciar a senha da `laquila` com o **Windows LAPS**.
 3. Trocar a senha antiga em todas as máquinas que já foram provisionadas com ela.
 
@@ -143,7 +144,7 @@ O WinPE padrão não tem PowerShell. A checagem pode ser feita com `diskpart` + 
 
 **Situação atual:**
 
-| Arquivo | Chama `scripts\init.ps1`? |
+| Arquivo | Chama `scripts\Start-Provisioning.ps1`? |
 |---|---|
 | XML da raiz | ✅ Sim: linhas 143–152, no fim do `First-Logon.ps1` embutido |
 | XML principal | ✅ Sim: linhas 298–307, no fim do `First-Logon.ps1` embutido |
@@ -151,9 +152,9 @@ O WinPE padrão não tem PowerShell. A checagem pode ser feita com `diskpart` + 
 
 **Como funciona (XML da raiz e XML principal):**
 
-1. Procura `scripts\init.ps1` em todas as unidades.
+1. Procura `scripts\Start-Provisioning.ps1` em todas as unidades.
 2. Abre o arquivo em uma **janela própria e visível** (`Start-Process`), direto do pendrive, sem copiar para o disco, com `-ExecutionPolicy Bypass`. A janela mostra a etapa atual e fica aberta até o técnico pressionar ENTER.
-3. Registra no `First-Logon.log` apenas que o `init.ps1` foi iniciado (PID). O resultado de cada etapa fica no `deployment.log`.
+3. Registra no `First-Logon.log` apenas que o `Start-Provisioning.ps1` foi iniciado (PID). O resultado de cada etapa fica no `deployment.log`.
 
 **Pendências:**
 
@@ -185,7 +186,7 @@ O `pe.cmd` detecta a pasta `$OEM$` e grava o caminho na variável `OEM_FOLDER`, 
 
 **Correção sugerida:** não depender do AutoLogon. No primeiro logon:
 
-- registrar uma **tarefa agendada** (gatilho: inicialização do sistema; conta: SYSTEM) que executa o `init.ps1`;
+- registrar uma **tarefa agendada** (gatilho: inicialização do sistema; conta: SYSTEM) que executa o `Start-Provisioning.ps1`;
 - controlar o progresso com `C:\ProgramData\WorkstationProvisioning\state.json`;
 - remover a tarefa na etapa final de limpeza.
 
@@ -193,7 +194,7 @@ O `pe.cmd` detecta a pasta `$OEM$` e grava o caminho na variável `OEM_FOLDER`, 
 
 ### 🟡 7. Cinco variantes de XML sem definição da oficial — ❌ Aberto
 
-| Arquivo | Particionamento | Disk Assertion | Chama `init.ps1` | Situação |
+| Arquivo | Particionamento | Disk Assertion | Chama `Start-Provisioning.ps1` | Situação |
 |---|---|---|---|---|
 | XML da raiz | Interativo (`PEMode=Default`) | — | Sim | Não é unattended |
 | `...\MBR\` | Automático, MBR | Ativa | Não | Incompatível com UEFI |
@@ -205,9 +206,9 @@ O `pe.cmd` detecta a pasta `$OEM$` e grava o caminho na variável `OEM_FOLDER`, 
 
 - Há risco de copiar o arquivo errado para o pendrive.
 - Cada correção precisa ser repetida nos 5 arquivos.
-- Os arquivos já estão divergindo: a chamada ao `init.ps1` só existe em 2 das 5 variantes.
+- Os arquivos já estão divergindo: a chamada ao `Start-Provisioning.ps1` só existe em 2 das 5 variantes.
 
-**Correção sugerida:** adotar o XML principal como oficial, já que ele particiona sozinho e chama o `init.ps1`. As outras variantes podem ir para uma pasta `archive\` ou ser removidas.
+**Correção sugerida:** adotar o XML principal como oficial, já que ele particiona sozinho e chama o `Start-Provisioning.ps1`. As outras variantes podem ir para uma pasta `archive\` ou ser removidas.
 
 ---
 
@@ -325,7 +326,7 @@ As contas `Admin` e `User` foram removidas dos 5 arquivos. Resta apenas `laquila
 ## 6. Ordem de correção recomendada
 
 1. **Item 1 (pendências):** trocar a senha antiga nas máquinas já provisionadas e criar a etapa que troca a senha temporária por uma aleatória.
-2. **Item 7:** definir um único XML oficial, com o particionamento do XML principal e a chamada ao `init.ps1`, e arquivar os demais.
+2. **Item 7:** definir um único XML oficial, com o particionamento do XML principal e a chamada ao `Start-Provisioning.ps1`, e arquivar os demais.
 3. **Item 3:** validar o disco alvo antes do `CLEAN`.
 4. **Itens 4, 5 e 6:** copiar os scripts para o disco e criar a tarefa agendada para retomar após reboot.
 5. **Itens 11 e 12:** definir nome e fuso horário antes do Domain Join.
