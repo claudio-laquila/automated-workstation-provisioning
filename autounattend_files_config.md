@@ -22,8 +22,8 @@ Na tabela, **`SI\`** abrevia `Arquivos de autounattend\Sem interação com parti
 
 - Idioma, teclado e região: pt-BR, ABNT2, Brasil.
 - Edição: Windows 11 Pro (amd64).
-- Contas: apenas `laquila` (Administrators), com senha temporária de provisionamento em Base64 (`PlainText=false`).
-- Login automático: `laquila`, válido para 1 logon.
+- Contas: apenas `Laquila` (Administrators), com senha temporária de provisionamento em Base64 (`PlainText=false`).
+- Login automático: `Laquila`, válido para 1 logon.
 - Nome do computador: aleatório.
 - Fuso horário: implícito (deduzido pela região).
 - Primeiro logon: executa `C:\Windows\Setup\Scripts\First-Logon.ps1`, que:

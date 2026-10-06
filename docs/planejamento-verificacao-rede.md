@@ -102,7 +102,7 @@ Parâmetros, com valores padrão no código nesta entrega e migração para `con
 - **PowerShell:** o CLAUDE.md define PowerShell 7+, mas uma máquina recém-formatada tem **somente o Windows PowerShell 5.1**. Os scripts desta fase precisam rodar no 5.1. Na prática:
   - `Invoke-WebRequest` precisa de `-UseBasicParsing`;
   - nada de operadores exclusivos do 7, como `??`, `?.` e ternário.
-- **Contexto de execução:** a conta `laquila` é administradora. A verificação não exige privilégio elevado.
+- **Contexto de execução:** a conta `Laquila` é administradora. A verificação não exige privilégio elevado.
 
 ## 9. Como testar
 

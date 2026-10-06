@@ -34,7 +34,7 @@ Os 5 arquivos criam **apenas uma conta local**:
 
 | Conta | Grupo | Senha | AutoLogon |
 |---|---|---|---|
-| `laquila` | Administrators | Temporária de provisionamento, em Base64 (`PlainText=false`) | Sim, 1 logon |
+| `Laquila` | Administrators | Temporária de provisionamento, em Base64 (`PlainText=false`) | Sim, 1 logon |
 
 Situação das demais contas:
 
@@ -83,6 +83,7 @@ Totais: 2 resolvidos, 2 parciais, 13 abertos.
 | 2026-10-02 | 4 | XML principal passou a chamar `scripts\init.ps1` do pendrive no fim do `First-Logon.ps1` embutido (mesmo bloco do XML da raiz). |
 | 2026-10-05 | 4 | Os 2 XMLs passaram a abrir o orquestrador em janela própria e visível (`Start-Process`). |
 | 2026-10-05 | — | Orquestrador renomeado de `scripts\init.ps1` (função `Init`) para `scripts\Start-Provisioning.ps1` (função `Start-Provisioning`), seguindo o padrão `Verb-Noun` do `naming.md`. Os 2 XMLs que o chamam foram atualizados. |
+| 2026-10-06 | — | Conta renomeada de `laquila` para `Laquila` nos 5 arquivos (`<Name>`, `<AutoLogon>/<Username>` e URL do comentário). O Windows não diferencia maiúsculas em nomes de conta; muda apenas a exibição e a pasta de perfil (`C:\Users\Laquila`). |
 
 ---
 
@@ -92,7 +93,7 @@ Totais: 2 resolvidos, 2 parciais, 13 abertos.
 
 **Onde (XML principal):**
 
-- linhas 130–133: senha da conta `laquila` em `<LocalAccount>`;
+- linhas 130–133: senha da conta `Laquila` em `<LocalAccount>`;
 - linhas 141–144: senha do `<AutoLogon>`.
 
 **Já corrigido:**
@@ -109,7 +110,7 @@ Totais: 2 resolvidos, 2 parciais, 13 abertos.
 **Pendências:**
 
 1. Criar uma etapa no `Start-Provisioning.ps1` que troque a senha temporária por uma senha aleatória logo no início do provisionamento.
-2. Após o ingresso no domínio, gerenciar a senha da `laquila` com o **Windows LAPS**.
+2. Após o ingresso no domínio, gerenciar a senha da `Laquila` com o **Windows LAPS**.
 3. Trocar a senha antiga em todas as máquinas que já foram provisionadas com ela.
 
 ---
@@ -264,9 +265,9 @@ O `pe.cmd` detecta a pasta `$OEM$` e grava o caminho na variável `OEM_FOLDER`, 
 
 ### 🟡 13. Contas locais extras — ✅ Resolvido
 
-As contas `Admin` e `User` foram removidas dos 5 arquivos. Resta apenas `laquila` (ver seção 1).
+As contas `Admin` e `User` foram removidas dos 5 arquivos. Resta apenas `Laquila` (ver seção 1).
 
-**Pendente, relacionado ao item 1:** definir o destino da `laquila` depois do provisionamento: desabilitar, remover ou gerenciar pelo LAPS. Documentar a decisão no README.
+**Pendente, relacionado ao item 1:** definir o destino da `Laquila` depois do provisionamento: desabilitar, remover ou gerenciar pelo LAPS. Documentar a decisão no README.
 
 ---
 
