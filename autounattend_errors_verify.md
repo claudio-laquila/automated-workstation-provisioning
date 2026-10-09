@@ -54,7 +54,7 @@ Situação das demais contas:
 | 3 | 🔴 | `SELECT DISK=0` fixo, sem nenhuma validação do disco | ❌ Aberto | Os 4 que particionam automaticamente |
 | 4 | 🟠 | Nenhuma chamada aos scripts do projeto (`scripts\Start-Provisioning.ps1`) | 🔶 Parcial | `MBR\`, `GPT\` e `GPT\Custom diskpart\` |
 | 5 | 🟠 | Os scripts do pendrive não são copiados para o disco (`$OEM$` ignorado) | ❌ Aberto | Os 4 com `PEMode=Generated` |
-| 6 | 🟠 | O AutoLogon vale só para 1 logon, sem retomada após reboot | ❌ Aberto | Todos os 5 |
+| 6 | 🟠 | O AutoLogon vale só para 1 logon, sem retomada após reboot | 🔶 Parcial | Todos os 5 |
 | 7 | 🟡 | 5 variantes de XML sem definição de qual é a oficial | ❌ Aberto | Pasta inteira |
 | 8 | 🟡 | O XML da raiz não particiona o disco automaticamente | ❌ Aberto | XML da raiz |
 | 9 | 🟡 | Variantes com Disk Assertions ativas (causa conhecida de falha) | ❌ Aberto | `GPT\` e `GPT\Custom diskpart\` |
@@ -67,7 +67,7 @@ Situação das demais contas:
 | 16 | ⚪ | Registro do WinRE na partição Recovery não é verificado | ❌ Aberto | XML principal |
 | 17 | ⚪ | `HideOnlineAccountScreens=false` junto com `BypassNRO` | ❌ Aberto | Todos os 5 |
 
-Totais: 2 resolvidos, 2 parciais, 13 abertos.
+Totais: 2 resolvidos, 3 parciais, 12 abertos.
 
 ---
 
@@ -84,6 +84,7 @@ Totais: 2 resolvidos, 2 parciais, 13 abertos.
 | 2026-10-05 | 4 | Os 2 XMLs passaram a abrir o orquestrador em janela própria e visível (`Start-Process`). |
 | 2026-10-05 | — | Orquestrador renomeado de `scripts\init.ps1` (função `Init`) para `scripts\Start-Provisioning.ps1` (função `Start-Provisioning`), seguindo o padrão `Verb-Noun` do `naming.md`. Os 2 XMLs que o chamam foram atualizados. |
 | 2026-10-06 | — | Conta renomeada de `laquila` para `Laquila` nos 5 arquivos (`<Name>`, `<AutoLogon>/<Username>` e URL do comentário). O Windows não diferencia maiúsculas em nomes de conta; muda apenas a exibição e a pasta de perfil (`C:\Users\Laquila`). |
+| 2026-10-08 | 6 | Retomada após reboot implementada no orquestrador (cópia local dos scripts, `state.json` e tarefa agendada no logon). O técnico faz login manualmente após cada reboot. |
 
 ---
 
@@ -179,7 +180,14 @@ O `pe.cmd` detecta a pasta `$OEM$` e grava o caminho na variável `OEM_FOLDER`, 
 
 ---
 
-### 🟠 6. O AutoLogon vale só para 1 logon, sem retomada após reboot — ❌ Aberto
+### 🟠 6. O AutoLogon vale só para 1 logon, sem retomada após reboot — 🔶 Parcial
+
+> **Status (2026-10-08):** a retomada após reboot foi implementada no `Start-Provisioning.ps1`:
+> - cópia local dos scripts em `C:\ProgramData\WorkstationProvisioning\scripts\`;
+> - `state.json`;
+> - tarefa agendada `\WorkstationProvisioning\Resume`, disparada no logon da conta.
+>
+> Por decisão do projeto, **o técnico faz login manualmente** após cada reboot, e o AutoLogon continua valendo só para o primeiro logon. Pendente: teste em VM. Detalhes em `docs\planejamento-windows-update.md`.
 
 **Onde (XML principal):** linha 140 (`<LogonCount>1</LogonCount>`) e linha 289, onde o `First-Logon.ps1` embutido zera o `AutoLogonCount`.
 
