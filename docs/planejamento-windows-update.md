@@ -308,6 +308,25 @@ Arquivos criados na máquina em `C:\ProgramData\WorkstationProvisioning\`:
 
 **Para reexecutar o provisionamento do zero** numa máquina de teste: apagar o `state.json`.
 
+### Correções após o primeiro teste em máquina real (2026-10-08)
+
+No primeiro teste, a máquina **hibernou** no meio do Windows Update, o técnico reiniciou manualmente e o provisionamento retomou no ciclo 2. A retomada funcionou, mas o teste mostrou três problemas, corrigidos no `Start-Provisioning.ps1`:
+
+| # | Problema | Correção |
+|---|---|---|
+| A | A máquina suspende ou hiberna por inatividade durante atualizações longas | `Disable-SystemSleep`: pede ao Windows (`SetThreadExecutionState`) para não suspender enquanto a janela estiver aberta. Não altera o plano de energia e deixa de valer sozinho quando o processo termina. **Não impede** a suspensão ao fechar a tampa do notebook. |
+| B | A tela não dizia ao técnico que a máquina reinicia sozinha | `Show-UpdateHelp`: aviso em amarelo no início de cada ciclo ("NÃO desligue, NÃO reinicie e NÃO feche a tampa…"). |
+| C | Um clique na janela seleciona texto e o Windows pausa o script até ESC ou ENTER | `Disable-ConsoleQuickEdit`: desativa a seleção com o mouse **somente nesta janela**. |
+
+Se alguma dessas funções falhar, o provisionamento continua e registra um aviso (`[WARN]`) no log.
+
+Testado em janela de console real (Windows PowerShell 5.1):
+
+- a seleção com o mouse ficou desativada;
+- o pedido para manter a máquina acordada foi aceito pelo Windows.
+
+Fluxo completo repetido com a etapa simulada: sem regressões.
+
 ---
 
 ## 15. Testes realizados (2026-10-08, Windows PowerShell 5.1)

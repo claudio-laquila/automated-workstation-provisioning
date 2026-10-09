@@ -7,6 +7,7 @@
 # O progresso fica em C:\ProgramData\WorkstationProvisioning\state.json.
 #
 # Roda em uma janela visível para que o técnico acompanhe em qual etapa o provisionamento está.
+# Enquanto a janela estiver aberta, a máquina não suspende por inatividade e cliques não pausam o script.
 # Cada etapa roda em um processo PowerShell separado.
 
 param(
@@ -137,6 +138,90 @@ function Invoke-Stage {
     }
     Write-Log "Etapa concluída: $Name (exit code $exitCode)"
     return $exitCode
+}
+
+function Add-NativeMethod {
+    # Funções do Windows usadas para manter a máquina acordada e configurar a janela do console.
+    if (-not ('WorkstationProvisioning.NativeMethods' -as [type])) {
+        Add-Type -Namespace 'WorkstationProvisioning' -Name 'NativeMethods' -MemberDefinition @'
+[DllImport("kernel32.dll")]
+public static extern uint SetThreadExecutionState(uint esFlags);
+
+[DllImport("kernel32.dll", SetLastError = true)]
+public static extern IntPtr GetStdHandle(int nStdHandle);
+
+[DllImport("kernel32.dll", SetLastError = true)]
+public static extern bool GetConsoleMode(IntPtr hConsoleHandle, out uint lpMode);
+
+[DllImport("kernel32.dll", SetLastError = true)]
+public static extern bool SetConsoleMode(IntPtr hConsoleHandle, uint dwMode);
+'@
+    }
+}
+
+function Disable-SystemSleep {
+    # Impede suspensão e hibernação por inatividade enquanto esta janela estiver aberta.
+    # Não altera o plano de energia: o Windows volta ao normal sozinho quando o processo termina.
+    # Não impede a suspensão ao fechar a tampa do notebook.
+    $esContinuous     = [uint32] 2147483648   # ES_CONTINUOUS (0x80000000)
+    $esSystemRequired = [uint32] 1            # ES_SYSTEM_REQUIRED (0x00000001)
+    $previousState = [WorkstationProvisioning.NativeMethods]::SetThreadExecutionState($esContinuous -bor $esSystemRequired)
+    if ($previousState -eq 0) {
+        throw 'O Windows recusou o pedido para manter a máquina acordada (SetThreadExecutionState).'
+    }
+    Write-Log 'Suspensão e hibernação por inatividade bloqueadas enquanto o provisionamento estiver aberto.'
+}
+
+function Disable-ConsoleQuickEdit {
+    # Desativa a seleção com o mouse (QuickEdit) somente nesta janela.
+    # Com ela ativa, um clique seleciona texto e o Windows pausa o script até ESC ou ENTER.
+    $stdInputHandle     = -10     # STD_INPUT_HANDLE
+    $enableQuickEdit    = 0x0040  # ENABLE_QUICK_EDIT_MODE
+    $enableExtendedFlag = 0x0080  # ENABLE_EXTENDED_FLAGS (necessário para alterar o QuickEdit)
+
+    $handle = [WorkstationProvisioning.NativeMethods]::GetStdHandle($stdInputHandle)
+    $mode = [uint32] 0
+    if (-not [WorkstationProvisioning.NativeMethods]::GetConsoleMode($handle, [ref] $mode)) {
+        throw 'Não foi possível ler o modo da janela do console (GetConsoleMode).'
+    }
+    $newMode = ($mode -band (-bnot [uint32] $enableQuickEdit)) -bor $enableExtendedFlag
+    if (-not [WorkstationProvisioning.NativeMethods]::SetConsoleMode($handle, [uint32] $newMode)) {
+        throw 'Não foi possível alterar o modo da janela do console (SetConsoleMode).'
+    }
+    Write-Log 'Seleção com o mouse desativada nesta janela (cliques não pausam mais o provisionamento).'
+}
+
+function Initialize-ProvisioningWindow {
+    # Falhas aqui não interrompem o provisionamento, mas ficam registradas como aviso.
+    try {
+        Add-NativeMethod
+    }
+    catch {
+        Write-Log "Não foi possível carregar as funções do Windows: $($_.Exception.Message). A máquina pode suspender e cliques podem pausar a janela." -Level WARN
+        return
+    }
+
+    try {
+        Disable-SystemSleep
+    }
+    catch {
+        Write-Log "$($_.Exception.Message) A máquina pode suspender durante o provisionamento." -Level WARN
+    }
+
+    try {
+        Disable-ConsoleQuickEdit
+    }
+    catch {
+        Write-Log "$($_.Exception.Message) Cliques na janela podem pausar o provisionamento." -Level WARN
+    }
+}
+
+function Show-UpdateHelp {
+    Write-Host ''
+    Write-Host '  NÃO desligue, NÃO reinicie e NÃO feche a tampa do notebook.' -ForegroundColor Yellow
+    Write-Host '  O computador reinicia sozinho quando necessário, com aviso de 60 segundos.' -ForegroundColor Yellow
+    Write-Host '  Atualizações grandes podem levar de 20 a 40 minutos sem mudar a tela: isso é normal.' -ForegroundColor Yellow
+    Write-Host ''
 }
 
 function Enter-SingleInstance {
@@ -282,6 +367,7 @@ function Invoke-WindowsUpdateStep {
         Save-ProvisioningState -State $State
 
         Show-Step -Number 3 -Name "Windows Update (ciclo $cycle de $maxUpdateCycles)"
+        Show-UpdateHelp
         $exitCode = Invoke-Stage -Name 'Install-WindowsUpdates' -Script 'Install-WindowsUpdates.ps1' -AllowedExitCodes 0, 2, 3010
 
         switch ($exitCode) {
@@ -307,6 +393,8 @@ function Invoke-WindowsUpdateStep {
 }
 
 function Start-Provisioning {
+    Initialize-ProvisioningWindow
+
     $isFirstRun = -not (Test-Path -LiteralPath $stateFile)
     $state = Get-ProvisioningState
 
