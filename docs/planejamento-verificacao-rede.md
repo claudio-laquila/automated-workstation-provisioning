@@ -94,7 +94,7 @@ Parâmetros, com valores padrão no código nesta entrega e migração para `con
 |---|---|---|
 | D1 | Sem conexão, aguardar **para sempre** ou desistir após um tempo? | ✅ **Aprovado: aguardar para sempre**, até o técnico conectar o cabo ou fazer login na rede. Não há parâmetro de timeout. |
 | D2 | O técnico precisa ver em qual etapa o provisionamento está? | ✅ **Aprovado: janela visível em todas as etapas.** O XML abre o `Start-Provisioning.ps1` com `Start-Process`, sem `-Wait`, para não segurar o primeiro logon. A janela mostra o título "Provisionamento \| Etapa N de 3 - …", um cabeçalho por etapa, instruções em amarelo quando não há rede e barra de progresso com a última tentativa. Ao final, mostra o resultado e aguarda ENTER. |
-| D3 | Wi-Fi: o XML não configura nenhuma rede Wi-Fi (`WifiMode=Skip`). | Considerar apenas **cabo** por enquanto e documentar isso. Se Wi-Fi for necessário, avaliar perfil Wi-Fi no XML, que exige cuidado com a senha da rede. |
+| D3 | Wi-Fi: o XML não configura nenhuma rede Wi-Fi (`WifiMode=Skip`). | ✅ **Decidido (2026-10-06): o técnico conecta a rede manualmente, por cabo ou Wi-Fi**, pelo ícone de rede da barra de tarefas. A verificação aceita qualquer adaptador. Nenhuma senha de Wi-Fi fica no pendrive. Limitação: placas Wi-Fi sem driver nativo no Windows exigem cabo ou adaptador USB-Ethernet. |
 | D4 | Proxy corporativo: se a internet só funcionar via proxy autenticado, a camada 2 falha. | Confirmar com a infraestrutura se a rede de provisionamento tem saída direta. Se não tiver, tratar o proxy em uma etapa própria. |
 
 ## 8. Compatibilidade
