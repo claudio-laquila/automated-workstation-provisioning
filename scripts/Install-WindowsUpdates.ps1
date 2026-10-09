@@ -44,6 +44,9 @@ $upgradesCategoryId = '3689bdc8-b205-4af4-8d4a-a63924c5e9d5'
 # Atualizações prévias: a API não tem um campo próprio; o filtro é pelo título (inglês e português).
 $previewTitlePattern = '(?i)\bpreview\b|visualiza[çc][ãa]o|pr[ée]via'
 
+# Tipo da atualização na API (IUpdate.Type): 1 = software, 2 = driver.
+$updateTypeDriver = 2
+
 $exitNoUpdates      = 0
 $exitInstalled      = 2
 $exitRebootRequired = 3010
@@ -149,9 +152,12 @@ function Select-InstallableUpdate {
         [Parameter(Mandatory)] [hashtable] $FailureCounts
     )
 
-    $selected = New-Object System.Collections.Generic.List[object]
+    $selected       = New-Object System.Collections.Generic.List[object]
+    $skippedReasons = [ordered] @{}   # motivo → quantidade, para o resumo na tela
+
     foreach ($update in $Updates) {
-        $label = Get-UpdateLabel -Update $update
+        $label    = Get-UpdateLabel -Update $update
+        $isDriver = $update.Type -eq $updateTypeDriver
 
         $isUpgrade = $false
         foreach ($category in $update.Categories) {
@@ -168,8 +174,10 @@ function Select-InstallableUpdate {
         elseif ($ExcludeOptional -and $update.BrowseOnly) {
             $reason = 'opcional (excluída por parâmetro)'
         }
-        elseif ($update.InstallationBehavior.CanRequestUserInput) {
-            $reason = 'exige interação do usuário'
+        elseif ($update.InstallationBehavior.CanRequestUserInput -and -not $isDriver) {
+            # Só para software: nesse caso a marcação costuma ser real e a instalação poderia travar
+            # esperando um clique. Drivers com essa marcação são instalados (ver abaixo).
+            $reason = 'software que pode pedir interação do usuário'
         }
         elseif ($FailureCounts[$update.Identity.UpdateID] -ge $maxFailuresPerUpdate) {
             $reason = "falhou $maxFailuresPerUpdate vezes em ciclos anteriores"
@@ -178,10 +186,21 @@ function Select-InstallableUpdate {
 
         if ($reason) {
             Write-Detail "Ignorada: $label ($reason)"
+            $skippedReasons[$reason] = 1 + [int] $skippedReasons[$reason]
+            continue
         }
-        else {
-            $selected.Add($update)
+
+        if ($isDriver -and $update.InstallationBehavior.CanRequestUserInput) {
+            # Muitos drivers (ex.: Intel) vêm marcados como "pode pedir interação", mas o Windows Update
+            # os instala sem janela. A instalação usa ForceQuiet: se o driver realmente exigir interação,
+            # ele falha em vez de travar, e depois de $maxFailuresPerUpdate falhas passa a ser ignorado.
+            Write-Detail "Driver marcado como 'pode pedir interação'; será instalado em modo silencioso: $label"
         }
+        $selected.Add($update)
+    }
+
+    foreach ($reason in $skippedReasons.Keys) {
+        Write-Status ('Ignoradas por "{0}": {1}' -f $reason, $skippedReasons[$reason])
     }
     return , $selected.ToArray()
 }

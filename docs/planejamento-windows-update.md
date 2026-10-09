@@ -152,23 +152,50 @@ Proteção contra duas janelas ao mesmo tempo: se o orquestrador já estiver rod
 ### 6.2 Um ciclo
 
 1. **Procurar** atualizações não instaladas e não ocultas:
-   - software e drivers (D3);
-   - incluindo as **opcionais** (D5), que a API marca como `BrowseOnly`;
-   - excluindo atualizações de versão (D4, categoria *Upgrades*);
-   - excluindo **prévias** (D5). A API não tem um campo "prévia": o filtro é feito pelo título, que contém `Preview`, ou `Visualização` / `Prévia` no Windows em português. Esse filtro depende do idioma e precisa ser conferido nos testes;
+   - software e drivers (D3), inclusive as **opcionais** (D5), que a API marca como `BrowseOnly`;
    - em caso de falha da busca (ex.: erro de rede), tentar de novo até 3 vezes com intervalo de 1 minuto.
-2. **Nenhuma encontrada:** exit `0`, Windows Update concluído.
-3. **Mostrar a lista** na janela e no log: quantidade, título e KB de cada uma.
-4. **Para cada atualização, uma por vez:**
+2. **Selecionar** o que será instalado, seguindo as regras de 6.2.1.
+3. **Nenhuma selecionada:** exit `0`, Windows Update concluído.
+4. **Mostrar a lista** na janela e no log: quantidade, título e KB de cada uma.
+5. **Para cada atualização, uma por vez:**
    - aceitar a licença, se houver;
    - baixar;
    - instalar;
    - registrar o resultado.
 
    A tela mostra `Instalando 3 de 12: KB5xxxxxx – <título>`.
-5. **Resultado do ciclo:**
+
+   A instalação usa o modo silencioso da API (`ForceQuiet`): nenhuma janela de instalador é exibida. Uma atualização que não possa ser instalada sem interação **falha**, em vez de travar esperando um clique.
+6. **Resultado do ciclo:**
    - alguma atualização pede reboot → exit `3010`;
    - nenhuma pede reboot → procurar de novo, que é o próximo ciclo, sem reiniciar.
+
+#### 6.2.1 Regras de seleção
+
+As regras são aplicadas na ordem da tabela. A primeira que se aplica decide.
+
+| # | Regra | Software | Driver | Motivo |
+|---|---|---|---|---|
+| 1 | Atualização de versão do Windows (categoria *Upgrades*, identificada pelo ID da categoria, independente do idioma) | Ignorada | — | D4: a versão do Windows vem da ISO |
+| 2 | Título indica **prévia** (`Preview`, `Visualização`, `Prévia`) | Ignorada | Ignorado | D5: prévias não são instaladas. O filtro depende do idioma do título. |
+| 3 | Opcional (`BrowseOnly`), somente com `-ExcludeOptional` | Ignorada | Ignorado | D5: por padrão, opcionais **são instaladas** |
+| 4 | Marcada como "pode pedir interação do usuário" (`CanRequestUserInput`) | **Ignorada** | **Instalado em modo silencioso** | Ver explicação abaixo |
+| 5 | Falhou 2 vezes em ciclos anteriores | Ignorada, com aviso na tela | Ignorado, com aviso na tela | Evita repetir a mesma falha até o limite de ciclos |
+| — | Nenhuma das anteriores | **Instalada** | **Instalado** | D3 e D5 |
+
+**Regra 4: "pode pedir interação do usuário"**
+
+A API do Windows Update marca algumas atualizações com `CanRequestUserInput`, indicando que o instalador *pode* exibir uma janela e esperar um clique.
+
+- **Software:** a marcação costuma ser real, por exemplo um instalador de terceiros com assistente. Instalar sem ninguém para clicar poderia travar o provisionamento. Por isso é ignorado.
+- **Drivers:** muitos drivers, principalmente da **Intel** (chipset, "System", gerenciamento), vêm com essa marcação, mas o próprio Windows Update os instala sem nenhuma janela. Por isso são **instalados em modo silencioso**. Se um driver realmente não puder ser instalado assim, ele falha e, depois de 2 falhas, cai na regra 5.
+
+**O que o técnico vê:**
+
+- Na tela, o resumo de cada ciclo mostra quantas atualizações foram ignoradas por motivo, por exemplo `Ignoradas por "atualização prévia": 1`.
+- No `windows-update.log` fica:
+  - uma linha `Ignorada: <KB> - <título> (<motivo>)` para cada atualização ignorada;
+  - uma linha `Driver marcado como 'pode pedir interação'; será instalado em modo silencioso: …` para cada driver com essa marcação.
 
 **Por que instalar uma por vez**, e não todas juntas:
 
@@ -326,6 +353,32 @@ Testado em janela de console real (Windows PowerShell 5.1):
 - o pedido para manter a máquina acordada foi aceito pelo Windows.
 
 Fluxo completo repetido com a etapa simulada: sem regressões.
+
+### Correção: drivers opcionais ignorados (2026-10-08)
+
+**Problema encontrado no teste em máquina real:** o provisionamento terminou como "concluído", mas drivers opcionais não foram instalados. O `windows-update.log` mostrava, por exemplo, `Ignorada: sem KB - INTEL - System ... (exige interação do usuário)`.
+
+**Causa:** a implementação inicial ignorava **qualquer** atualização marcada como `CanRequestUserInput`, inclusive drivers. Esse filtro foi acrescentado durante a implementação, não estava neste planejamento e contrariava as decisões D3 e D5.
+
+**Correção:**
+
+- a regra passou a valer só para **software** (regra 4 de 6.2.1);
+- drivers com a marcação são instalados em modo silencioso;
+- o resumo de atualizações ignoradas por motivo agora aparece na tela.
+
+**Teste (Windows PowerShell 5.1, atualizações simuladas):**
+
+- foram selecionados para instalação:
+  - o driver Intel com a marcação;
+  - um driver comum;
+  - uma atualização cumulativa;
+- foram ignorados, cada um com o motivo correto:
+  - o software com a marcação;
+  - a prévia com título em português;
+  - a atualização de versão do Windows;
+  - o driver com 2 falhas.
+
+**Para reprocessar uma máquina já concluída:** apagar `C:\ProgramData\WorkstationProvisioning\state.json`, atualizar a cópia local dos scripts e executar o provisionamento novamente. As atualizações já instaladas não reaparecem na busca.
 
 ---
 
