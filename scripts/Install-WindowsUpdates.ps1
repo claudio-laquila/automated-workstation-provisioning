@@ -15,6 +15,8 @@
 # Teste sem alterar a máquina:
 #   powershell.exe -ExecutionPolicy Bypass -File .\Install-WindowsUpdates.ps1 -SearchOnly
 #
+# Carregado por dot-source (testes), apenas define as funções: o ciclo só roda quando o script é executado.
+#
 # Compatível com Windows PowerShell 5.1.
 
 param(
@@ -23,14 +25,15 @@ param(
     # Não inclui drivers na busca (padrão: inclui).
     [switch] $ExcludeDrivers,
     # Não inclui atualizações opcionais (padrão: inclui).
-    [switch] $ExcludeOptional
+    [switch] $ExcludeOptional,
+    # Pasta de trabalho do provisionamento. Só muda em testes.
+    [ValidateNotNullOrEmpty()] [string] $RootDir = 'C:\ProgramData\WorkstationProvisioning'
 )
 
 $ErrorActionPreference = 'Stop'
 
-$rootDir      = 'C:\ProgramData\WorkstationProvisioning'
-$logFile      = Join-Path $rootDir 'Logs\windows-update.log'
-$failuresFile = Join-Path $rootDir 'windows-update-failures.json'
+$logFile      = Join-Path $RootDir 'Logs\windows-update.log'
+$failuresFile = Join-Path $RootDir 'windows-update-failures.json'
 
 $maxFailuresPerUpdate    = 2
 $searchRetries           = 3
@@ -318,13 +321,16 @@ function Install-WindowsUpdates {
     return $exitInstalled
 }
 
-try {
-    # @(...)[-1]: garante que só o código de saída seja usado, mesmo que algo escape para o pipeline.
-    $exitCode = @(Install-WindowsUpdates)[-1]
-    exit $exitCode
-}
-catch {
-    [Console]::Out.WriteLine("ERRO: $($_.Exception.Message)")
-    Write-Detail "ERRO: $($_.Exception.Message)"
-    exit 1
+# Só roda quando o script é executado, não quando é carregado por dot-source (testes).
+if ($MyInvocation.InvocationName -ne '.') {
+    try {
+        # @(...)[-1]: garante que só o código de saída seja usado, mesmo que algo escape para o pipeline.
+        $exitCode = @(Install-WindowsUpdates)[-1]
+        exit $exitCode
+    }
+    catch {
+        [Console]::Out.WriteLine("ERRO: $($_.Exception.Message)")
+        Write-Detail "ERRO: $($_.Exception.Message)"
+        exit 1
+    }
 }
