@@ -31,7 +31,7 @@ Os scripts do pendrive (`<unidade>:\scripts\`) são copiados para **`C:\ProgramD
 | `First-Logon.ps1` | `C:\Windows\Setup\Scripts\` | Extraído do XML. Roda no primeiro logon: zera o login automático, apaga o `unattend.xml` e abre o `Start-Provisioning.ps1` do pendrive. | Não |
 | `Specialize.log`, `RemovePackages.log`, `DefaultUser.log`, `First-Logon.log` | `C:\Windows\Setup\Scripts\` | Log de cada script acima | Não |
 | `Start-Provisioning.ps1` | `C:\ProgramData\WorkstationProvisioning\scripts\` | Cópia local do orquestrador. É ela que a tarefa agendada executa após cada reboot. | Não |
-| `First-Logon.ps1` | `C:\ProgramData\WorkstationProvisioning\scripts\` | Cópia local da etapa 1 (acesso fake). Não é o mesmo arquivo do `C:\Windows\Setup\Scripts\`. | Não |
+| `AutoLogon.ps1` | `C:\ProgramData\WorkstationProvisioning\scripts\` | Cópia local das funções de login automático (etapa 1) | Não |
 | `Test-InternetConnection.ps1` | `C:\ProgramData\WorkstationProvisioning\scripts\` | Cópia local da verificação de internet (etapa 2) | Não |
 | `Install-WindowsUpdates.ps1` | `C:\ProgramData\WorkstationProvisioning\scripts\` | Cópia local da etapa de Windows Update (etapa 3) | Não |
 | `Install-Programs.ps1` | `C:\ProgramData\WorkstationProvisioning\scripts\` | Copiado só porque está na pasta `scripts\` do pendrive: a cópia leva **tudo** o que houver nela. Ainda não é usado. | Não |
@@ -41,6 +41,16 @@ Os scripts do pendrive (`<unidade>:\scripts\`) são copiados para **`C:\ProgramD
 | `deployment.log` | `C:\ProgramData\WorkstationProvisioning\Logs\` | Log principal: etapas, rede, ciclos, reboots e erros | Não |
 | `windows-update.log` | `C:\ProgramData\WorkstationProvisioning\Logs\` | Detalhe do Windows Update: atualizações encontradas e ignoradas, e resultado de cada uma | Não |
 | `Resume` | `C:\Windows\System32\Tasks\WorkstationProvisioning\` | Definição da tarefa agendada `\WorkstationProvisioning\Resume`, que reabre o provisionamento a cada login | Sim, quando o provisionamento termina |
+
+## Outras alterações no sistema (não são arquivos)
+
+| Item | Onde | Motivo | Removido? |
+|---|---|---|---|
+| Segredo `L$WorkstationProvisioning_AutoLogon` | LSA (segredos protegidos do Windows) | Senha da conta, lida uma vez do `config\autologon.txt` do pendrive, para o login automático após os reboots | Sim, ao concluir o provisionamento. Em caso de erro é mantido para uma nova tentativa. |
+| Segredo `DefaultPassword` | LSA | Cópia da senha lida pelo Windows no login automático do próximo boot | Sim, no fim e em caso de erro |
+| `AutoAdminLogon`, `DefaultUserName`, `DefaultDomainName`, `AutoLogonCount` | Registro: `HKLM\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Winlogon` | Configuração do login automático, válida para 1 boot | `AutoAdminLogon` volta a `0` e `AutoLogonCount` é removido no fim e em caso de erro |
+
+O arquivo `config\autologon.txt` fica **somente no pendrive**: não é copiado para a máquina. Detalhes em `docs\planejamento-login-automatico.md`.
 
 ## Arquivos temporários da instalação (WinPE)
 

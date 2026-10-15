@@ -3,7 +3,9 @@
 # Primeira execução: iniciado pelo First-Logon.ps1 embutido no autounattend.xml, a partir do pendrive.
 #   - copia os scripts para C:\ProgramData\WorkstationProvisioning\scripts;
 #   - registra uma tarefa agendada que reabre este script (cópia local) a cada logon do técnico,
-#     para o provisionamento continuar depois dos reboots do Windows Update.
+#     para o provisionamento continuar depois dos reboots do Windows Update;
+#   - guarda a senha do login automático (config\autologon.txt do pendrive) como segredo protegido do Windows:
+#     antes de cada reboot, o Windows é configurado para entrar sozinho na conta, uma única vez (AutoLogon.ps1).
 # O progresso fica em C:\ProgramData\WorkstationProvisioning\state.json.
 #
 # Roda em uma janela visível para que o técnico acompanhe em qual etapa o provisionamento está.
@@ -30,10 +32,18 @@ $totalSteps              = 3
 $maxUpdateCycles         = 6
 $restartCountdownSeconds = 60
 
+# Senha do login automático, em Base64, na pasta config\ do pendrive (ao lado de scripts\).
+# Só é lida na primeira execução, a partir do pendrive. Não versionar (está no .gitignore).
+$credentialFile = Join-Path (Split-Path -Parent $PSScriptRoot) 'config\autologon.txt'
+
 # Ligado quando o computador vai reiniciar: a janela fecha sem pausa.
 $isRestarting = $false
 
+# Ligado quando a senha do login automático está guardada nesta máquina.
+$isAutoLogonAvailable = $false
+
 . (Join-Path $PSScriptRoot 'Test-InternetConnection.ps1')
+. (Join-Path $PSScriptRoot 'AutoLogon.ps1')
 
 function Write-Log {
     param(
@@ -331,13 +341,75 @@ function Unregister-ResumeTask {
     }
 }
 
+function Initialize-AutoLogon {
+    # Prepara o login automático usado após cada reboot (decisões L1 a L4).
+    # Falhas não interrompem o provisionamento: o técnico passa a fazer login manualmente.
+    try {
+        if (Remove-PlainTextAutoLogonPassword) {
+            Write-Log 'Senha em texto puro encontrada e removida do registro (Winlogon\DefaultPassword).' -Level WARN
+        }
+
+        if (Test-AutoLogonCredential) {
+            $script:isAutoLogonAvailable = $true
+            Write-Log 'Login automático disponível (senha guardada como segredo protegido do Windows).'
+            return
+        }
+
+        if (-not (Test-Path -LiteralPath $credentialFile)) {
+            Write-Log "Arquivo de login automático não encontrado: $credentialFile. Após cada reboot, faça login manualmente na conta $($env:USERNAME)." -Level WARN
+            return
+        }
+
+        Import-AutoLogonCredential -Path $credentialFile -UserName $env:USERNAME
+        $script:isAutoLogonAvailable = $true
+        Write-Log "Senha do login automático lida de $credentialFile e guardada como segredo protegido do Windows."
+    }
+    catch {
+        Write-Log "Login automático indisponível: $($_.Exception.Message) Após cada reboot, faça login manualmente na conta $($env:USERNAME)." -Level WARN
+    }
+}
+
+function Stop-AutoLogon {
+    # Desliga o login automático. Com -RemoveCredential, apaga também a senha guardada (fim do provisionamento).
+    param([switch] $RemoveCredential)
+    try {
+        Disable-AutoLogon -RemoveCredential:$RemoveCredential
+        if ($RemoveCredential) {
+            Write-Log 'Login automático desligado e senha guardada removida.'
+        }
+        else {
+            Write-Log 'Login automático desligado.'
+        }
+    }
+    catch {
+        Write-Log "Não foi possível desligar o login automático: $($_.Exception.Message) Verifique manualmente (Winlogon\AutoAdminLogon)." -Level ERROR
+    }
+}
+
 function Restart-ForWindowsUpdate {
     Write-Log 'As atualizações exigem reiniciar o computador.' -Level WARN
+
+    $isAutoLogonEnabled = $false
+    if ($isAutoLogonAvailable) {
+        try {
+            Enable-AutoLogon -UserName $env:USERNAME
+            $isAutoLogonEnabled = $true
+            Write-Log "Login automático ativado para o próximo boot (conta $($env:USERNAME))."
+        }
+        catch {
+            Write-Log "Não foi possível ativar o login automático: $($_.Exception.Message)" -Level WARN
+        }
+    }
 
     Write-Host ''
     Write-Host '  As atualizações exigem reiniciar o computador.' -ForegroundColor Yellow
     Write-Host "  O computador será reiniciado em $restartCountdownSeconds segundos." -ForegroundColor Yellow
-    Write-Host "  Depois do reinício, faça login na conta $($env:USERNAME): o provisionamento continua sozinho." -ForegroundColor Yellow
+    if ($isAutoLogonEnabled) {
+        Write-Host "  Depois do reinício, o Windows entra sozinho na conta $($env:USERNAME) e o provisionamento continua." -ForegroundColor Yellow
+    }
+    else {
+        Write-Host "  Depois do reinício, faça login na conta $($env:USERNAME): o provisionamento continua sozinho." -ForegroundColor Yellow
+    }
     Write-Host ''
 
     for ($remaining = $restartCountdownSeconds; $remaining -gt 0; $remaining--) {
@@ -401,6 +473,7 @@ function Start-Provisioning {
     if ($state.Status -eq 'Completed') {
         Write-Log "O provisionamento já foi concluído em $($state.UpdatedAt). Nada a fazer."
         Unregister-ResumeTask
+        Stop-AutoLogon -RemoveCredential
         return
     }
 
@@ -415,14 +488,9 @@ function Start-Provisioning {
     Copy-ProvisioningScript
     Register-ResumeTask
 
-    Show-Step -Number 1 -Name 'Primeiro logon'
-    if (Test-StepCompleted -State $state -Name 'First-Logon') {
-        Write-Log 'Etapa já concluída anteriormente.'
-    }
-    else {
-        $null = Invoke-Stage -Name 'First-Logon' -Script 'First-Logon.ps1'
-        Complete-Step -State $state -Name 'First-Logon'
-    }
+    # Roda a cada execução: na primeira importa a senha do pendrive; nas retomadas só confirma que ela continua guardada.
+    Show-Step -Number 1 -Name 'Login automático'
+    Initialize-AutoLogon
 
     # A verificação de rede não é marcada como concluída: roda a cada retomada,
     # porque a conexão pode ter caído durante o reboot.
@@ -444,6 +512,7 @@ function Start-Provisioning {
     $state.Status = 'Completed'
     Save-ProvisioningState -State $state
     Unregister-ResumeTask
+    Stop-AutoLogon -RemoveCredential
     Write-Log '==== Provisionamento concluído ===='
 }
 
@@ -473,6 +542,8 @@ try {
 catch {
     $exitCode = 1
     Write-Log $_.Exception.Message -Level ERROR
+    # Mantém a senha guardada para a nova tentativa (logoff e login), mas não deixa o login automático ligado.
+    Stop-AutoLogon
     $Host.UI.RawUI.WindowTitle = 'Provisionamento | ERRO'
     Write-Host ''
     Write-Host '  PROVISIONAMENTO INTERROMPIDO POR ERRO.' -ForegroundColor Red

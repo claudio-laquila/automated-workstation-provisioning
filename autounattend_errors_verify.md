@@ -85,6 +85,7 @@ Totais: 2 resolvidos, 3 parciais, 12 abertos.
 | 2026-10-05 | — | Orquestrador renomeado de `scripts\init.ps1` (função `Init`) para `scripts\Start-Provisioning.ps1` (função `Start-Provisioning`), seguindo o padrão `Verb-Noun` do `naming.md`. Os 2 XMLs que o chamam foram atualizados. |
 | 2026-10-06 | — | Conta renomeada de `laquila` para `Laquila` nos 5 arquivos (`<Name>`, `<AutoLogon>/<Username>` e URL do comentário). O Windows não diferencia maiúsculas em nomes de conta; muda apenas a exibição e a pasta de perfil (`C:\Users\Laquila`). |
 | 2026-10-08 | 6 | Retomada após reboot implementada no orquestrador (cópia local dos scripts, `state.json` e tarefa agendada no logon). O técnico faz login manualmente após cada reboot. |
+| 2026-10-09 | 1, 6 | Login automático após cada reboot (decisões L1 a L4): a senha é lida de `config\autologon.txt` no pendrive, guardada no LSA durante o provisionamento e apagada ao final. A senha em texto puro que o Windows pode deixar no registro (`Winlogon\DefaultPassword`) passa a ser removida. O `<AutoLogon>` do XML é mantido para o primeiro login. Ver `docs\planejamento-login-automatico.md`. |
 
 ---
 
@@ -187,7 +188,7 @@ O `pe.cmd` detecta a pasta `$OEM$` e grava o caminho na variável `OEM_FOLDER`, 
 > - `state.json`;
 > - tarefa agendada `\WorkstationProvisioning\Resume`, disparada no logon da conta.
 >
-> Por decisão do projeto, **o técnico faz login manualmente** após cada reboot, e o AutoLogon continua valendo só para o primeiro logon. Pendente: teste em VM. Detalhes em `docs\planejamento-windows-update.md`.
+> **Atualização (2026-10-09):** o Windows passou a **entrar sozinho na conta após cada reboot**. Antes de reiniciar, o orquestrador configura o login automático para um único boot, com a senha lida de `config\autologon.txt` no pendrive. Sem esse arquivo, o técnico faz login manualmente. O `<AutoLogon>` do XML continua responsável pelo primeiro login. Pendente: teste em VM. Detalhes em `docs\planejamento-login-automatico.md`.
 
 **Onde (XML principal):** linha 140 (`<LogonCount>1</LogonCount>`) e linha 289, onde o `First-Logon.ps1` embutido zera o `AutoLogonCount`.
 

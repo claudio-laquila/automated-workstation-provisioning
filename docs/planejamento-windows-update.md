@@ -81,7 +81,7 @@ Assim, a regra de reboot fica em um único lugar e as próximas etapas (Domain J
 | # | Decisão | Resultado (2026-10-06) |
 |---|---|---|
 | **D1** | Como acessar o Windows Update: (a) **API nativa do Windows** (Windows Update Agent, objeto COM `Microsoft.Update.Session`) ou (b) módulo **PSWindowsUpdate** da PowerShell Gallery | ✅ **(a) API nativa do Windows.** Não depende de nada externo e mantém os filtros sob nosso controle. |
-| **D2** | Como o provisionamento volta depois do reboot | ✅ **O técnico faz login** na conta `Laquila` após cada reboot. A tarefa agendada reabre a janela. Sem login automático. |
+| **D2** | Como o provisionamento volta depois do reboot | ~~O técnico faz login na conta `Laquila` após cada reboot.~~ **Substituída em 2026-10-09 pela decisão L2:** o Windows entra sozinho na conta após cada reboot (login automático configurado antes do reboot). Se o arquivo de senha não estiver no pendrive, volta a valer o login manual. A tarefa agendada continua reabrindo a janela. Ver `docs\planejamento-login-automatico.md`. |
 | **D3** | Incluir **drivers** do Windows Update? | ✅ **Sim.** Configurável para desligar se algum modelo tiver problema. |
 | **D4** | Instalar **atualizações de versão** do Windows 11 (ex.: 24H2 → 25H2)? | ✅ **Não. A versão vem da ISO.** Atualizações de versão (categoria *Upgrades*) são sempre excluídas. |
 | **D5** | Instalar atualizações **opcionais** e **prévias**? | ✅ **Opcionais: sim. Prévias: não.** Ver o filtro de prévias em 6.2. |

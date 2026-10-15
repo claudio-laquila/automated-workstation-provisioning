@@ -1,0 +1,2 @@
+# Senha do login automático do provisionamento (Base64). Fica somente no pendrive, nunca no Git.
+config/autologon.txt

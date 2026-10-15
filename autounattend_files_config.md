@@ -39,3 +39,4 @@ Na pasta do projeto, os arquivos e pastas podem ter qualquer nome. Ao preparar o
 
 1. Copie **apenas uma** variante para a raiz do pendrive, com o nome `autounattend.xml`.
 2. Copie a pasta `scripts\` para a raiz do pendrive. É de lá que o primeiro logon executa o `Start-Provisioning.ps1`.
+3. Crie `config\autologon.txt` na raiz do pendrive, com a senha temporária da conta em Base64. Ele permite que o Windows entre sozinho na conta após cada reboot. Como gerar: `docs\planejamento-login-automatico.md`, seção 5. **Crie direto no pendrive**, nunca na pasta do projeto. Sem esse arquivo, o técnico faz login manualmente após cada reboot.
