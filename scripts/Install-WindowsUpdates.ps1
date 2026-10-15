@@ -126,7 +126,8 @@ function Find-PendingUpdate {
     }
 
     # UpdateID → atualização (evita duplicados entre as buscas).
-    $updatesById = @{}
+    # [ordered] mantém a ordem devolvida pelo Windows Update (ex.: pilha de manutenção antes das demais).
+    $updatesById = [ordered] @{}
     foreach ($criteria in $criteriaList) {
         $searchResult = $null
         for ($attempt = 1; $attempt -le $searchRetries; $attempt++) {
@@ -303,7 +304,14 @@ function Install-WindowsUpdates {
         catch {
             $failedCount++
             $failureCounts[$updateId] = 1 + [int] $failureCounts[$updateId]
-            Write-Status ('{0} FALHA: {1} - {2} (HResult 0x{3:X8})' -f $prefix, $label, $_.Exception.Message, $_.Exception.HResult)
+
+            # Erros da API (COM) chegam embrulhados em uma ou mais exceções: o código útil é o da mais interna.
+            # Erros gerados pelo próprio script já trazem o HResult do Windows Update na mensagem.
+            $message = $_.Exception.Message
+            if ($message -notlike '*HResult*') {
+                $message = '{0} (HResult 0x{1:X8})' -f $message, $_.Exception.GetBaseException().HResult
+            }
+            Write-Status ('{0} FALHA: {1} - {2}' -f $prefix, $label, $message)
         }
     }
 

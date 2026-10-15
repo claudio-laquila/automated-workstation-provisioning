@@ -380,6 +380,22 @@ Fluxo completo repetido com a etapa simulada: sem regressões.
 
 **Para reprocessar uma máquina já concluída:** apagar `C:\ProgramData\WorkstationProvisioning\state.json`, atualizar a cópia local dos scripts e executar o provisionamento novamente. As atualizações já instaladas não reaparecem na busca.
 
+### Correções encontradas pelos testes de unidade (2026-10-15)
+
+Os testes de `tests\Unit\Install-WindowsUpdates.Tests.ps1` encontraram dois defeitos, corrigidos no `Install-WindowsUpdates.ps1`:
+
+| # | Defeito | Efeito | Correção |
+|---|---|---|---|
+| 1 | Os resultados das buscas (software e drivers) eram juntados numa hashtable comum, que **não preserva a ordem** | As atualizações eram instaladas numa ordem diferente da devolvida pelo Windows Update. Ele costuma entregar primeiro a pilha de manutenção, da qual as outras dependem. | Dicionário ordenado (`[ordered] @{}`). Teste: "mantém a ordem devolvida pelo Windows Update". |
+| 2 | A mensagem de falha mostrava **dois HResult**, o do Windows Update e o código genérico `0x80131501` do erro gerado pelo próprio script | Confundia o diagnóstico | Mostra um único HResult: o do Windows Update, ou o da exceção mais interna (`GetBaseException()`) quando o erro vem da API COM. Testes: "mostra um único HResult…". |
+
+Também foram acrescentados ao script, para permitir os testes (decisão T2 do planejamento de testes):
+
+- **guarda de execução:** carregado por dot-source, o script só define as funções;
+- **parâmetro `-RootDir`:** padrão `C:\ProgramData\WorkstationProvisioning`, usado só em testes.
+
+O comportamento em produção não mudou. A busca real com `-SearchOnly` foi repetida depois das correções: exit 0.
+
 ---
 
 ## 15. Testes realizados (2026-10-08, Windows PowerShell 5.1)
