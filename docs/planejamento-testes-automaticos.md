@@ -7,8 +7,9 @@ Status: **em implementação.**
 | Data | Item | Situação |
 |---|---|---|
 | 2026-10-14 | T1 | ✅ Pester 6.2.0 instalado e validado no Windows PowerShell 5.1 |
-| 2026-10-15 | T2 | 🔶 Aprovada (plano: guarda de execução + `-RootDir`), ainda não implementada |
+| 2026-10-15 | T2 | 🔶 Aprovada (guarda de execução + `-RootDir`). ✅ Aplicada ao `Install-WindowsUpdates.ps1` em 2026-10-15. ⏳ Pendente no `Start-Provisioning.ps1`. |
 | 2026-10-15 | Nível 2: `Test-InternetConnection` | ✅ `tests\Unit\Test-InternetConnection.Tests.ps1`: 19 testes. Prova de eficácia: numa cópia com 2 defeitos inseridos de propósito, 3 testes falharam como esperado. |
+| 2026-10-15 | Nível 2: Windows Update | ✅ `tests\Unit\Install-WindowsUpdates.Tests.ps1`: 54 testes (carregamento, rótulo, as 5 regras de seleção, contagem de falhas, busca com novas tentativas, pré-requisitos e o ciclo completo com a API simulada). Prova de eficácia: 4 defeitos inseridos de propósito, todos detectados. **Os testes encontraram 2 defeitos reais**, corrigidos no script (ver o planejamento do Windows Update). |
 | — | T3 a T5 e demais testes | Aguardando decisão |
 
 Corresponde à **Fase 10 (Testes)** do roadmap do CLAUDE.md, antecipada para proteger o que já existe: autounattend, verificação de rede, Windows Update e login automático.
@@ -198,7 +199,17 @@ Os itens 1 a 15 de teste da Fase 10 do CLAUDE.md que não forem cobertos pelos n
 
 ---
 
-## 8. Riscos e limitações
+## 8. Observações sobre o Pester 6
+
+- **Simulação com filtro sem simulação padrão dá erro.** Se um comando tem só `Mock` com `-ParameterFilter` e a chamada não bate com nenhum filtro, o Pester 6 lança erro em vez de usar o comando real, como fazia o Pester 5.
+  - Quando o teste precisar do comando real para as outras chamadas, crie uma simulação padrão que chame o cmdlet pelo objeto `CmdletInfo`: `$ExecutionContext.InvokeCommand.GetCmdlet('Microsoft.PowerShell.Utility\New-Object')`.
+  - Pelo nome, mesmo qualificado com o módulo, o Pester 6 intercepta de novo e entra em loop.
+  - Nas funções auxiliares dos testes, prefira `[Tipo]::new()` a `New-Object`.
+- **Avisos falsos do analisador.** Variáveis atribuídas no teste para serem lidas pelas funções do script (ex.: `$SearchOnly`) geram o aviso `PSUseDeclaredVarsMoreThanAssignments`. Ele é suprimido no início do arquivo de teste, com comentário explicando o motivo.
+
+---
+
+## 9. Riscos e limitações
 
 - **Simulação não é a realidade:** os níveis 1 a 3 garantem a lógica, não o comportamento do Windows. Por isso os níveis 4, 5 e o checklist manual continuam necessários.
 - **Testes que alteram o sistema** (nível 4) **nunca** devem rodar na máquina de desenvolvimento. O `Invoke-Tests.ps1` não os inclui; eles só rodam no Sandbox, no runner ou na VM.
