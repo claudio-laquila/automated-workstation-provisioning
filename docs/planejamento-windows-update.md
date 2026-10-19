@@ -347,6 +347,15 @@ No primeiro teste, a máquina **hibernou** no meio do Windows Update, o técnico
 
 Se alguma dessas funções falhar, o provisionamento continua e registra um aviso (`[WARN]`) no log.
 
+**Complemento (2026-10-16): hibernação desativada durante todo o provisionamento.** A correção A só vale enquanto a janela está aberta. Para cobrir também a tela de login depois de um reboot e a janela fechada, o `scripts\PowerPolicy.ps1` aplica, a cada execução:
+
+- `powercfg /hibernate off`;
+- tempo para **suspender** = nunca, na tomada e na bateria;
+- tempo para **hibernar** = nunca, na tomada e na bateria;
+- tempo para **desligar a tela** = nunca, na tomada e na bateria, para o técnico sempre ver a janela.
+
+A configuração original é guardada em `power-policy-backup.json` e **restaurada ao concluir**; em caso de erro, é mantida. Fechar a tampa continua suspendendo. 11 testes de unidade, com o `powercfg` simulado.
+
 Testado em janela de console real (Windows PowerShell 5.1):
 
 - a seleção com o mouse ficou desativada;

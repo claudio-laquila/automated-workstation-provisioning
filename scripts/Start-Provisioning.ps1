@@ -50,9 +50,13 @@ $autoLogonCount = 10
 # Configuração original do reinício automático do Windows Update, restaurada ao concluir (AutoRestartPolicy.ps1).
 $autoRestartBackupFile = Join-Path $rootDir 'auto-restart-policy-backup.json'
 
+# Configuração original de hibernação e suspensão, restaurada ao concluir (PowerPolicy.ps1).
+$powerBackupFile = Join-Path $rootDir 'power-policy-backup.json'
+
 . (Join-Path $PSScriptRoot 'Test-InternetConnection.ps1')
 . (Join-Path $PSScriptRoot 'AutoLogon.ps1')
 . (Join-Path $PSScriptRoot 'AutoRestartPolicy.ps1')
+. (Join-Path $PSScriptRoot 'PowerPolicy.ps1')
 
 function Write-Log {
     param(
@@ -428,6 +432,31 @@ function Initialize-RestartPolicy {
     }
 }
 
+function Initialize-PowerPolicy {
+    # Desliga hibernação e suspensão por inatividade enquanto o provisionamento roda (inclusive na tela de
+    # login após um reboot). Falha não interrompe o provisionamento, mas fica registrada.
+    try {
+        Disable-ProvisioningPowerSaving -BackupFile $powerBackupFile
+        Write-Log 'Plano de energia durante o provisionamento: suspender, hibernar e desligar a tela = nunca (tomada e bateria); hibernação desligada. Fechar a tampa ainda suspende.'
+    }
+    catch {
+        Write-Log "Não foi possível desativar a hibernação/suspensão: $($_.Exception.Message) A máquina pode hibernar durante o provisionamento." -Level WARN
+    }
+}
+
+function Restore-PowerPolicy {
+    # Devolve a configuração original de hibernação e suspensão (fim do provisionamento).
+    try {
+        if (Restore-ProvisioningPowerPolicy -BackupFile $powerBackupFile) {
+            Write-Log 'Configuração original de hibernação e suspensão restaurada.'
+        }
+    }
+    catch {
+        $message = 'Não foi possível restaurar a hibernação/suspensão: {0} Reverta manualmente: powercfg /hibernate on (e os tempos de suspensão desejados).' -f $_.Exception.Message
+        Write-Log $message -Level ERROR
+    }
+}
+
 function Restore-RestartPolicy {
     # Devolve a configuração original do reinício automático do Windows Update (fim do provisionamento).
     try {
@@ -549,6 +578,7 @@ function Start-Provisioning {
         Unregister-ResumeTask
         Stop-AutoLogon -RemoveCredential
         Restore-RestartPolicy
+        Restore-PowerPolicy
         return
     }
 
@@ -563,6 +593,7 @@ function Start-Provisioning {
     Copy-ProvisioningFile
     Register-ResumeTask
     Initialize-RestartPolicy
+    Initialize-PowerPolicy
 
     # Roda a cada execução: na primeira importa a senha do pendrive; nas retomadas só confirma que ela continua guardada.
     Show-Step -Number 1 -Name 'Login automático'
@@ -601,6 +632,7 @@ function Start-Provisioning {
     Unregister-ResumeTask
     Stop-AutoLogon -RemoveCredential
     Restore-RestartPolicy
+    Restore-PowerPolicy
     Write-Log '==== Provisionamento concluído ===='
 }
 
