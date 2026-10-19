@@ -32,6 +32,8 @@ Os scripts do pendrive (`<unidade>:\scripts\`) são copiados para **`C:\ProgramD
 | `Specialize.log`, `RemovePackages.log`, `DefaultUser.log`, `First-Logon.log` | `C:\Windows\Setup\Scripts\` | Log de cada script acima | Não |
 | `Start-Provisioning.ps1` | `C:\ProgramData\WorkstationProvisioning\scripts\` | Cópia local do orquestrador. É ela que a tarefa agendada executa após cada reboot. | Não |
 | `AutoLogon.ps1` | `C:\ProgramData\WorkstationProvisioning\scripts\` | Cópia local das funções de login automático (etapa 1) | Não |
+| `AutoRestartPolicy.ps1` | `C:\ProgramData\WorkstationProvisioning\scripts\` | Cópia local das funções que bloqueiam e restauram o reinício automático do Windows Update | Não |
+| `auto-restart-policy-backup.json` | `C:\ProgramData\WorkstationProvisioning\` | Configuração original do reinício automático do Windows Update, guardada antes de alterá-la | Sim, ao concluir (depois de restaurar a configuração) |
 | `Test-InternetConnection.ps1` | `C:\ProgramData\WorkstationProvisioning\scripts\` | Cópia local da verificação de internet (etapa 2) | Não |
 | `Install-WindowsUpdates.ps1` | `C:\ProgramData\WorkstationProvisioning\scripts\` | Cópia local da etapa de Windows Update (etapa 3) | Não |
 | `Install-Applications.ps1` | `C:\ProgramData\WorkstationProvisioning\scripts\` | Cópia local da etapa de aplicativos (etapa 4) | Não |
@@ -53,7 +55,8 @@ Os scripts do pendrive (`<unidade>:\scripts\`) são copiados para **`C:\ProgramD
 |---|---|---|---|
 | Segredo `L$WorkstationProvisioning_AutoLogon` | LSA (segredos protegidos do Windows) | Senha da conta, lida uma vez do `config\autologon.txt` do pendrive, para o login automático após os reboots | Sim, ao concluir o provisionamento. Em caso de erro é mantido para uma nova tentativa. |
 | Segredo `DefaultPassword` | LSA | Cópia da senha lida pelo Windows no login automático do próximo boot | Sim, no fim e em caso de erro |
-| `AutoAdminLogon`, `DefaultUserName`, `DefaultDomainName`, `AutoLogonCount` | Registro: `HKLM\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Winlogon` | Configuração do login automático, válida para 1 boot | `AutoAdminLogon` volta a `0` e `AutoLogonCount` é removido no fim e em caso de erro |
+| `AutoAdminLogon`, `DefaultUserName`, `DefaultDomainName`, `AutoLogonCount` | Registro: `HKLM\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Winlogon` | Configuração do login automático, ativada a cada execução para até 10 logins | `AutoAdminLogon` volta a `0` e `AutoLogonCount` é removido no fim e em caso de erro |
+| `NoAutoRebootWithLoggedOnUsers = 1` | Registro: `HKLM\SOFTWARE\Policies\Microsoft\Windows\WindowsUpdate\AU` | Impede o Windows Update de reiniciar sozinho durante o provisionamento | Sim, **restaurado ao concluir** (valor original). Em caso de erro é mantido. Reverter manualmente: `Remove-ItemProperty 'HKLM:\SOFTWARE\Policies\Microsoft\Windows\WindowsUpdate\AU' -Name NoAutoRebootWithLoggedOnUsers` |
 
 O arquivo `config\autologon.txt` fica **somente no pendrive**: não é copiado para a máquina. Detalhes em `docs\planejamento-login-automatico.md`.
 

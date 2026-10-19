@@ -24,6 +24,27 @@ Pelo mesmo motivo, o **primeiro** login, logo após a instalação, não pode se
 
 ---
 
+## Correção após teste em máquina real (2026-10-16)
+
+**Problema:** a máquina reiniciou e não entrou sozinha na conta.
+
+**Diagnóstico** (log do provisionamento + eventos 1074 e 4625 do Windows):
+
+- A senha foi importada corretamente. O pendrive estava certo.
+- Os reinícios **não foram pedidos pelo orquestrador**, e sim pelo **próprio Windows Update**, à meia-noite: `MoUsoCoreWorker.exe` às 00:16 e `TrustedInstaller.exe` às 00:20, com o motivo "atualização (planejada)".
+- Na versão anterior, o login automático só era ativado **imediatamente antes de um reboot do orquestrador**. Por isso, num reinício feito pelo Windows, ou manual, ele não estava ligado.
+
+**Correções:**
+
+1. **O login automático é ativado no início de cada execução** (etapa 1), valendo para **até 10 logins** (`AutoLogonCount = 10`), e renovado antes de cada reboot do orquestrador. Assim **qualquer** reinício volta sozinho para a conta. Se a máquina for abandonada no meio, ele se esgota depois de 10 logins.
+2. **O reinício automático do Windows Update é bloqueado** durante o provisionamento (`scripts\AutoRestartPolicy.ps1`, política `NoAutoRebootWithLoggedOnUsers = 1`) e **restaurado ao concluir**, com o valor original guardado em `auto-restart-policy-backup.json`.
+   - **Em caso de erro, a política é mantida**, porque o provisionamento ainda está pendente.
+   - Se a máquina for abandonada, reverta manualmente: `Remove-ItemProperty 'HKLM:\SOFTWARE\Policies\Microsoft\Windows\WindowsUpdate\AU' -Name NoAutoRebootWithLoggedOnUsers`.
+
+As seções 4.2, 4.3 e 6 abaixo descrevem a versão anterior. Onde falam em "1 boot" ou "antes de cada reboot", passa a valer o descrito aqui.
+
+---
+
 ## 3. Decisões (2026-10-09)
 
 | # | Pergunta | Decisão |

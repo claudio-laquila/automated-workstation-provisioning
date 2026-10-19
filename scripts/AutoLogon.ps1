@@ -2,8 +2,9 @@
 # Carregado pelo Start-Provisioning.ps1 (dot-source). Decisões L1 a L4 em docs\planejamento-login-automatico.md.
 #
 # Um script não consegue fazer login sozinho: depois de um reboot nenhum script do projeto está rodando.
-# Estas funções configuram o login automático do próprio Windows (Winlogon) ANTES de cada reboot,
-# valendo para um único boot.
+# Estas funções configuram o login automático do próprio Windows (Winlogon). O orquestrador o ativa no
+# início de cada execução, valendo para até 10 logins, para cobrir qualquer reinício (do script, do
+# Windows Update ou manual), e o desliga ao concluir ou em caso de erro.
 #
 # A senha:
 #   - é lida UMA vez do arquivo config\autologon.txt do pendrive (conteúdo em Base64);
@@ -244,8 +245,12 @@ function Remove-PlainTextAutoLogonPassword {
 }
 
 function Enable-AutoLogon {
-    # Configura o Windows para entrar sozinho na conta, uma única vez, no próximo boot.
-    param([Parameter(Mandatory)] [string] $UserName)
+    # Configura o Windows para entrar sozinho na conta nos próximos $LogonCount boots
+    # (qualquer reinício: do script, do Windows Update ou manual). O Windows desconta 1 a cada login automático.
+    param(
+        [Parameter(Mandatory)] [string] $UserName,
+        [ValidateRange(1, 99)] [int] $LogonCount = 10
+    )
 
     Add-AutoLogonNativeMethod
     $password = [WorkstationProvisioning.LsaSecret]::Get($autoLogonSecretKey)
@@ -257,7 +262,7 @@ function Enable-AutoLogon {
     New-ItemProperty -Path $winlogonKey -Name 'AutoAdminLogon'    -Value '1'                -PropertyType String -Force | Out-Null
     New-ItemProperty -Path $winlogonKey -Name 'DefaultUserName'   -Value $UserName          -PropertyType String -Force | Out-Null
     New-ItemProperty -Path $winlogonKey -Name 'DefaultDomainName' -Value $env:COMPUTERNAME  -PropertyType String -Force | Out-Null
-    New-ItemProperty -Path $winlogonKey -Name 'AutoLogonCount'    -Value 1                  -PropertyType DWord  -Force | Out-Null
+    New-ItemProperty -Path $winlogonKey -Name 'AutoLogonCount'    -Value $LogonCount        -PropertyType DWord  -Force | Out-Null
     [void] (Remove-PlainTextAutoLogonPassword)
 }
 

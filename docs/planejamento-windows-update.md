@@ -313,7 +313,7 @@ Os testes devem ser feitos **em VM com snapshot**: as atualizações não podem 
 - **Atualizações problemáticas:** algumas falham sempre em certos modelos. A regra de "2 falhas seguidas" evita o loop, mas a atualização fica pendente.
 - **Drivers opcionais (D3 + D5):** com drivers e opcionais ligados, entram também os **drivers opcionais**, que o Windows normalmente não instala sozinho. Eles podem ser numerosos e, raramente, causar problema em um modelo específico. Por isso drivers e opcionais são configuráveis separadamente.
 - **Total de atualizações desconhecido:** só se sabe quantas atualizações há **no ciclo atual**. Depois de um reboot podem surgir outras, que dependiam das anteriores. A tela mostra "N de M neste ciclo" e o total instalado até o momento, nunca um total geral.
-- **Windows reiniciando sozinho:** durante a instalação, o próprio Windows pode agendar reboots. A implementação deve evitar que isso aconteça no meio do ciclo, adiando enquanto o provisionamento roda.
+- **Windows reiniciando sozinho:** durante a instalação, o próprio Windows pode agendar reboots. ✅ **Tratado em 2026-10-16**, depois de acontecer no teste real (reinício às 00:16 por `MoUsoCoreWorker.exe`). Agora a política `NoAutoRebootWithLoggedOnUsers = 1` é aplicada durante o provisionamento e restaurada ao final (`scripts\AutoRestartPolicy.ps1`), e o login automático passou a valer para qualquer reinício (`docs\planejamento-login-automatico.md`).
 - **Erros que dependem do ambiente:** proxy corporativo ou bloqueio dos servidores do Windows Update no firewall fazem a busca falhar. É o mesmo ponto D4 da fase de rede, a confirmar com a infraestrutura.
 
 ---

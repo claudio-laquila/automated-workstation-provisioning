@@ -43,8 +43,16 @@ $isRestarting = $false
 # Ligado quando a senha do login automático está guardada nesta máquina.
 $isAutoLogonAvailable = $false
 
+# Quantos logins automáticos cada ativação permite. Renovado a cada execução e antes de cada reboot do
+# orquestrador. Se a máquina for abandonada no meio, o login automático se esgota sozinho.
+$autoLogonCount = 10
+
+# Configuração original do reinício automático do Windows Update, restaurada ao concluir (AutoRestartPolicy.ps1).
+$autoRestartBackupFile = Join-Path $rootDir 'auto-restart-policy-backup.json'
+
 . (Join-Path $PSScriptRoot 'Test-InternetConnection.ps1')
 . (Join-Path $PSScriptRoot 'AutoLogon.ps1')
+. (Join-Path $PSScriptRoot 'AutoRestartPolicy.ps1')
 
 function Write-Log {
     param(
@@ -377,7 +385,9 @@ function Unregister-ResumeTask {
 }
 
 function Initialize-AutoLogon {
-    # Prepara o login automático usado após cada reboot (decisões L1 a L4).
+    # Prepara e ATIVA o login automático (decisões L1 a L4).
+    # A ativação acontece a cada execução, valendo para até $autoLogonCount logins, para cobrir qualquer
+    # reinício: o do orquestrador, o do próprio Windows Update ou um manual.
     # Falhas não interrompem o provisionamento: o técnico passa a fazer login manualmente.
     try {
         if (Remove-PlainTextAutoLogonPassword) {
@@ -387,22 +397,51 @@ function Initialize-AutoLogon {
         if (Test-AutoLogonCredential) {
             $script:isAutoLogonAvailable = $true
             Write-Log 'Login automático disponível (senha guardada como segredo protegido do Windows).'
-            return
         }
-
-        if (-not (Test-Path -LiteralPath $credentialFile)) {
+        elseif (-not (Test-Path -LiteralPath $credentialFile)) {
             Write-Log "Arquivo de login automático não encontrado: $credentialFile. Após cada reboot, faça login manualmente na conta $($env:USERNAME)." -Level WARN
             return
         }
+        else {
+            Import-AutoLogonCredential -Path $credentialFile -UserName $env:USERNAME
+            $script:isAutoLogonAvailable = $true
+            Write-Log "Senha do login automático lida de $credentialFile e guardada como segredo protegido do Windows."
+        }
 
-        Import-AutoLogonCredential -Path $credentialFile -UserName $env:USERNAME
-        $script:isAutoLogonAvailable = $true
-        Write-Log "Senha do login automático lida de $credentialFile e guardada como segredo protegido do Windows."
+        Enable-AutoLogon -UserName $env:USERNAME -LogonCount $autoLogonCount
+        Write-Log "Login automático ativado: em qualquer reinício, o Windows entra sozinho na conta $($env:USERNAME) (até $autoLogonCount vezes)."
     }
     catch {
         Write-Log "Login automático indisponível: $($_.Exception.Message) Após cada reboot, faça login manualmente na conta $($env:USERNAME)." -Level WARN
     }
 }
+
+function Initialize-RestartPolicy {
+    # Impede o Windows Update de reiniciar a máquina sozinho enquanto o provisionamento roda.
+    # Falha não interrompe o provisionamento, mas fica registrada.
+    try {
+        Disable-WindowsUpdateAutoRestart -BackupFile $autoRestartBackupFile
+        Write-Log 'Reinício automático do Windows Update bloqueado durante o provisionamento (NoAutoRebootWithLoggedOnUsers = 1).'
+    }
+    catch {
+        Write-Log "Não foi possível bloquear o reinício automático do Windows Update: $($_.Exception.Message) O Windows pode reiniciar a máquina sozinho." -Level WARN
+    }
+}
+
+function Restore-RestartPolicy {
+    # Devolve a configuração original do reinício automático do Windows Update (fim do provisionamento).
+    try {
+        if (Restore-WindowsUpdateAutoRestart -BackupFile $autoRestartBackupFile) {
+            Write-Log 'Configuração original do reinício automático do Windows Update restaurada.'
+        }
+    }
+    catch {
+        $message = ("Não foi possível restaurar o reinício automático do Windows Update: {0} Reverta manualmente: " +
+            "Remove-ItemProperty 'HKLM:\SOFTWARE\Policies\Microsoft\Windows\WindowsUpdate\AU' -Name NoAutoRebootWithLoggedOnUsers") -f $_.Exception.Message
+        Write-Log $message -Level ERROR
+    }
+}
+
 function Stop-AutoLogon {
     # Desliga o login automático. Com -RemoveCredential, apaga também a senha guardada (fim do provisionamento).
     param([switch] $RemoveCredential)
@@ -426,7 +465,8 @@ function Restart-ForWindowsUpdate {
     $isAutoLogonEnabled = $false
     if ($isAutoLogonAvailable) {
         try {
-            Enable-AutoLogon -UserName $env:USERNAME
+            # Renova a contagem antes do reboot do orquestrador.
+            Enable-AutoLogon -UserName $env:USERNAME -LogonCount $autoLogonCount
             $isAutoLogonEnabled = $true
             Write-Log "Login automático ativado para o próximo boot (conta $($env:USERNAME))."
         }
@@ -508,6 +548,7 @@ function Start-Provisioning {
         Write-Log "O provisionamento já foi concluído em $($state.UpdatedAt). Nada a fazer."
         Unregister-ResumeTask
         Stop-AutoLogon -RemoveCredential
+        Restore-RestartPolicy
         return
     }
 
@@ -521,6 +562,7 @@ function Start-Provisioning {
     Save-ProvisioningState -State $state
     Copy-ProvisioningFile
     Register-ResumeTask
+    Initialize-RestartPolicy
 
     # Roda a cada execução: na primeira importa a senha do pendrive; nas retomadas só confirma que ela continua guardada.
     Show-Step -Number 1 -Name 'Login automático'
@@ -558,6 +600,7 @@ function Start-Provisioning {
     Save-ProvisioningState -State $state
     Unregister-ResumeTask
     Stop-AutoLogon -RemoveCredential
+    Restore-RestartPolicy
     Write-Log '==== Provisionamento concluído ===='
 }
 
