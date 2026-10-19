@@ -10,6 +10,7 @@ Status: **em implementação.**
 | 2026-10-15 | T2 | 🔶 Aprovada (guarda de execução + `-RootDir`). ✅ Aplicada ao `Install-WindowsUpdates.ps1` em 2026-10-15. ⏳ Pendente no `Start-Provisioning.ps1`. |
 | 2026-10-15 | Nível 2: `Test-InternetConnection` | ✅ `tests\Unit\Test-InternetConnection.Tests.ps1`: 19 testes. Prova de eficácia: numa cópia com 2 defeitos inseridos de propósito, 3 testes falharam como esperado. |
 | 2026-10-15 | Nível 2: Windows Update | ✅ `tests\Unit\Install-WindowsUpdates.Tests.ps1`: 54 testes (carregamento, rótulo, as 5 regras de seleção, contagem de falhas, busca com novas tentativas, pré-requisitos e o ciclo completo com a API simulada). Prova de eficácia: 4 defeitos inseridos de propósito, todos detectados. **Os testes encontraram 2 defeitos reais**, corrigidos no script (ver o planejamento do Windows Update). |
+| 2026-10-15 | Nível 2: aplicativos | ✅ `tests\Unit\Install-Applications.Tests.ps1`: 46 testes (lista de aplicativos, incluindo o `apps.json` real; detecção; validação por hash e assinatura; download com novas tentativas; reserva do pendrive; execução MSI/EXE; ocupado 1618; etapa completa). Prova de eficácia: 4 defeitos inseridos, todos detectados. O script já nasceu com a T2 (guarda + `-RootDir`). |
 | — | T3 a T5 e demais testes | Aguardando decisão |
 
 Corresponde à **Fase 10 (Testes)** do roadmap do CLAUDE.md, antecipada para proteger o que já existe: autounattend, verificação de rede, Windows Update e login automático.

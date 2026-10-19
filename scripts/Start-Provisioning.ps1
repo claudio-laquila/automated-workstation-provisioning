@@ -1,7 +1,8 @@
 ﻿# Orquestrador da automação pós-instalação.
 #
 # Primeira execução: iniciado pelo First-Logon.ps1 embutido no autounattend.xml, a partir do pendrive.
-#   - copia os scripts para C:\ProgramData\WorkstationProvisioning\scripts;
+#   - copia os scripts, o config\apps.json e os instaladores de reserva (installers\) para
+#     C:\ProgramData\WorkstationProvisioning;
 #   - registra uma tarefa agendada que reabre este script (cópia local) a cada logon do técnico,
 #     para o provisionamento continuar depois dos reboots do Windows Update;
 #   - guarda a senha do login automático (config\autologon.txt do pendrive) como segredo protegido do Windows:
@@ -28,7 +29,7 @@ $localScriptsDir = Join-Path $rootDir 'scripts'
 $taskPath = '\WorkstationProvisioning\'
 $taskName = 'Resume'
 
-$totalSteps              = 3
+$totalSteps              = 4
 $maxUpdateCycles         = 6
 $restartCountdownSeconds = 60
 
@@ -141,7 +142,13 @@ function Invoke-Stage {
     }
 
     Write-Log "Iniciando etapa: $Name"
-    & powershell.exe -NoProfile -ExecutionPolicy Bypass -File $path | ForEach-Object { Write-Log "  $_" }
+    # A saída da etapa aparece na janela: falhas em vermelho, avisos em amarelo.
+    & powershell.exe -NoProfile -ExecutionPolicy Bypass -File $path | ForEach-Object {
+        $level = if ($_ -match '\[FALHA\]|\bFALHA:|^\s*ERRO\b') { 'ERROR' }
+                 elseif ($_ -match '^\s*AVISO\b') { 'WARN' }
+                 else { 'INFO' }
+        Write-Log "  $_" -Level $level
+    }
     $exitCode = $LASTEXITCODE
     if ($AllowedExitCodes -notcontains $exitCode) {
         throw "Etapa '$Name' falhou com exit code $exitCode"
@@ -306,15 +313,43 @@ function Complete-Step {
     Save-ProvisioningState -State $State
 }
 
-function Copy-ProvisioningScript {
-    # Copia os scripts para o disco: a retomada após reboot não depende do pendrive nem da letra da unidade.
+function Copy-ProvisioningFile {
+    # Copia do pendrive para o disco o que as etapas precisam depois dos reboots,
+    # para não depender do pendrive nem da letra da unidade:
+    #   scripts\               → todos os scripts;
+    #   config\apps.json       → lista de aplicativos (o config\autologon.txt NÃO é copiado);
+    #   installers\            → instaladores de reserva dos aplicativos, se existirem.
     $sourceDir = (Resolve-Path -LiteralPath $PSScriptRoot).Path.TrimEnd('\')
     if ($sourceDir -eq $localScriptsDir) {
         return
     }
+    $sourceRoot = Split-Path -Parent $sourceDir
+
     New-Item -ItemType Directory -Force -Path $localScriptsDir | Out-Null
     Copy-Item -Path (Join-Path $sourceDir '*') -Destination $localScriptsDir -Recurse -Force
     Write-Log "Scripts copiados de $sourceDir para $localScriptsDir."
+
+    $appsConfig = Join-Path $sourceRoot 'config\apps.json'
+    if (Test-Path -LiteralPath $appsConfig) {
+        $localConfigDir = Join-Path $RootDir 'config'
+        New-Item -ItemType Directory -Force -Path $localConfigDir | Out-Null
+        Copy-Item -LiteralPath $appsConfig -Destination $localConfigDir -Force
+        Write-Log "Lista de aplicativos copiada: $appsConfig."
+    }
+    else {
+        Write-Log "Lista de aplicativos não encontrada no pendrive: $appsConfig." -Level WARN
+    }
+
+    $installers = Join-Path $sourceRoot 'installers'
+    if (Test-Path -LiteralPath $installers) {
+        $localInstallersDir = Join-Path $RootDir 'installers'
+        New-Item -ItemType Directory -Force -Path $localInstallersDir | Out-Null
+        Copy-Item -Path (Join-Path $installers '*') -Destination $localInstallersDir -Recurse -Force
+        Write-Log "Instaladores de reserva copiados de $installers para $localInstallersDir."
+    }
+    else {
+        Write-Log "Pasta de instaladores de reserva não encontrada no pendrive ($installers): só o download será usado." -Level WARN
+    }
 }
 
 function Register-ResumeTask {
@@ -368,7 +403,6 @@ function Initialize-AutoLogon {
         Write-Log "Login automático indisponível: $($_.Exception.Message) Após cada reboot, faça login manualmente na conta $($env:USERNAME)." -Level WARN
     }
 }
-
 function Stop-AutoLogon {
     # Desliga o login automático. Com -RemoveCredential, apaga também a senha guardada (fim do provisionamento).
     param([switch] $RemoveCredential)
@@ -485,7 +519,7 @@ function Start-Provisioning {
             $(if ($state.CompletedSteps.Count -gt 0) { $state.CompletedSteps -join ', ' } else { 'nenhuma' }), $state.WindowsUpdateCycle)
     }
     Save-ProvisioningState -State $state
-    Copy-ProvisioningScript
+    Copy-ProvisioningFile
     Register-ResumeTask
 
     # Roda a cada execução: na primeira importa a senha do pendrive; nas retomadas só confirma que ela continua guardada.
@@ -507,6 +541,17 @@ function Start-Provisioning {
             return
         }
         Complete-Step -State $state -Name 'Install-WindowsUpdates'
+    }
+
+    Show-Step -Number 4 -Name 'Aplicativos'
+    if (Test-StepCompleted -State $state -Name 'Install-Applications') {
+        Write-Log 'Etapa já concluída anteriormente.'
+    }
+    else {
+        # Falha em aplicativo obrigatório: exit code 1, o que interrompe o provisionamento.
+        # Para tentar de novo, basta logoff e login: os aplicativos já instalados são pulados.
+        $null = Invoke-Stage -Name 'Install-Applications' -Script 'Install-Applications.ps1'
+        Complete-Step -State $state -Name 'Install-Applications'
     }
 
     $state.Status = 'Completed'
@@ -534,7 +579,7 @@ try {
         Write-Host ''
         Write-Host ('=' * 64) -ForegroundColor Green
         Write-Host '  PROVISIONAMENTO CONCLUÍDO.' -ForegroundColor Green
-        Write-Host '  As próximas etapas (domínio, aplicativos) ainda não foram implementadas.' -ForegroundColor Green
+        Write-Host '  As próximas etapas (domínio, configurações) ainda não foram implementadas.' -ForegroundColor Green
         Write-Host "  Log: $logFile" -ForegroundColor Green
         Write-Host ('=' * 64) -ForegroundColor Green
     }

@@ -1,0 +1,40 @@
+{
+    "applications": [
+        {
+            "id": "chrome",
+            "name": "Google Chrome",
+            "type": "msi",
+            "url": "https://dl.google.com/dl/chrome/install/googlechromestandaloneenterprise64.msi",
+            "fileName": "googlechromestandaloneenterprise64.msi",
+            "arguments": "/qn /norestart",
+            "sha256": "",
+            "signer": "Google LLC",
+            "displayName": "Google Chrome",
+            "required": true
+        },
+        {
+            "id": "7zip",
+            "name": "7-Zip",
+            "type": "msi",
+            "url": "https://www.7-zip.org/a/7z2604-x64.msi",
+            "fileName": "7z2604-x64.msi",
+            "arguments": "/qn /norestart",
+            "sha256": "0B01334A418654293513449F61D6BFC99E5196CA371E3C3DC961EDA57CD535C6",
+            "signer": "",
+            "displayName": "7-Zip*",
+            "required": true
+        },
+        {
+            "id": "vlc",
+            "name": "VLC media player",
+            "type": "msi",
+            "url": "https://download.videolan.org/pub/videolan/vlc/3.0.24/win64/vlc-3.0.24-win64.msi",
+            "fileName": "vlc-3.0.24-win64.msi",
+            "arguments": "/qn /norestart",
+            "sha256": "22172095CE4C2D5F5B600BB4C142D78105DB29A77FA59A931941876F3B20F6D0",
+            "signer": "",
+            "displayName": "VLC media player*",
+            "required": true
+        }
+    ]
+}

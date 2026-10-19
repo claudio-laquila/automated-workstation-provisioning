@@ -34,7 +34,12 @@ Os scripts do pendrive (`<unidade>:\scripts\`) são copiados para **`C:\ProgramD
 | `AutoLogon.ps1` | `C:\ProgramData\WorkstationProvisioning\scripts\` | Cópia local das funções de login automático (etapa 1) | Não |
 | `Test-InternetConnection.ps1` | `C:\ProgramData\WorkstationProvisioning\scripts\` | Cópia local da verificação de internet (etapa 2) | Não |
 | `Install-WindowsUpdates.ps1` | `C:\ProgramData\WorkstationProvisioning\scripts\` | Cópia local da etapa de Windows Update (etapa 3) | Não |
-| `Install-Programs.ps1` | `C:\ProgramData\WorkstationProvisioning\scripts\` | Copiado só porque está na pasta `scripts\` do pendrive: a cópia leva **tudo** o que houver nela. Ainda não é usado. | Não |
+| `Install-Applications.ps1` | `C:\ProgramData\WorkstationProvisioning\scripts\` | Cópia local da etapa de aplicativos (etapa 4) | Não |
+| `apps.json` | `C:\ProgramData\WorkstationProvisioning\config\` | Cópia da lista de aplicativos do pendrive. O `autologon.txt` **não** é copiado. | Não |
+| `installers\<id>\<arquivo>` | `C:\ProgramData\WorkstationProvisioning\installers\` | Cópia dos instaladores de reserva do pendrive, usados se o download falhar (cerca de 200 MB) | Não (limpeza final, Fase 9) |
+| `<arquivo>.msi` | `C:\ProgramData\WorkstationProvisioning\Downloads\` | Instalador baixado do site oficial | Sim, logo após a instalação |
+| `applications.log` | `C:\ProgramData\WorkstationProvisioning\Logs\` | Detalhe da etapa de aplicativos: download, validação, instalação e resumo | Não |
+| `msi-<id>.log` | `C:\ProgramData\WorkstationProvisioning\Logs\` | Log detalhado do `msiexec` de cada aplicativo (`/l*v`) | Não |
 | `state.json` | `C:\ProgramData\WorkstationProvisioning\` | Progresso do provisionamento: etapas concluídas, ciclo do Windows Update e status. Permite retomar após reboot. | Não. Fica com `Status: Completed` |
 | `state.json.tmp` | `C:\ProgramData\WorkstationProvisioning\` | Arquivo temporário da gravação segura do `state.json` | Sim, logo em seguida (é renomeado para `state.json`) |
 | `windows-update-failures.json` | `C:\ProgramData\WorkstationProvisioning\` | Quantas vezes cada atualização falhou. Uma atualização que falha 2 vezes deixa de ser tentada. Só é criado se o Windows Update chegar a instalar algo. | Não |
