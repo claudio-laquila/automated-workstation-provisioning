@@ -190,6 +190,7 @@ $selectors = @(
 	'Microsoft.XboxIdentityProvider';
 	'Microsoft.XboxSpeechToTextOverlay';
 	'Microsoft.GamingApp';
+	'Microsoft.MicrosoftSolitaireCollection';
 );
 $getCommand = {
   Get-AppxProvisionedPackage -Online;

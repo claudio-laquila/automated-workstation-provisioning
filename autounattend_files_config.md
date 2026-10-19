@@ -14,7 +14,7 @@ Na tabela, **`SI\`** abrevia `Arquivos de autounattend\Sem interação com parti
 | `SI\MBR\` | Automático, **MBR**, com partição Recovery | Sim | ❌ Não, falha com erro | ❌ Não | ❌ Não | Incompatível com UEFI e Windows 11. |
 | `SI\GPT\` | Automático, **GPT**, com o layout padrão do gerador | Sim | ❌ Não, falha com erro | ❌ Não | ❌ Não | — |
 | `SI\GPT\Custom diskpart\` | **Diskpart do projeto**, GPT: EFI 300 MB, MSR 16 MB, Windows, Recovery ~1000 MB | Sim | ❌ Não, falha com erro | ❌ Não | ❌ Não | Esta é a falha registrada no CLAUDE.md. |
-| `SI\GPT\Custom diskpart\No Assertions about the disk\` | **Diskpart do projeto**, GPT, mesmo layout do anterior | Não | ✅ Sim, apaga o Disk 0 inteiro | ✅ Sim | ✅ Sim: apps Xbox e Game DVR | **Padrão segundo o CLAUDE.md.** Única variante totalmente automática que chama o `Start-Provisioning.ps1`. |
+| `SI\GPT\Custom diskpart\No Assertions about the disk\` | **Diskpart do projeto**, GPT, mesmo layout do anterior | Não | ✅ Sim, apaga o Disk 0 inteiro | ✅ Sim | ✅ Sim: apps Xbox, Microsoft Solitaire Collection e Game DVR | **Padrão segundo o CLAUDE.md.** Única variante totalmente automática que chama o `Start-Provisioning.ps1`. |
 
 **Atenção:** as variantes automáticas sempre usam o Disk 0, sem confirmar se é o disco certo. Na variante que não verifica o disco, isso significa que o Disk 0 é apagado mesmo que seja o pendrive ou um segundo disco.
 

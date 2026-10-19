@@ -26,7 +26,7 @@ Os scripts do pendrive (`<unidade>:\scripts\`) são copiados para **`C:\ProgramD
 |---|---|---|---|
 | `unattend.xml` | `C:\Windows\Panther\` | Cópia do XML do pendrive feita pelo `pe.cmd` (WinPE). O Windows lê as etapas seguintes da instalação a partir dela. | Sim, no primeiro logon (`First-Logon.ps1` embutido) |
 | `Specialize.ps1` | `C:\Windows\Setup\Scripts\` | Extraído do XML. Roda durante a instalação: desliga a exigência de conta Microsoft (`BypassNRO`), chama o `RemovePackages.ps1` e define senhas sem expiração. | Não |
-| `RemovePackages.ps1` | `C:\Windows\Setup\Scripts\` | Extraído do XML. Remove os apps Xbox. | Não |
+| `RemovePackages.ps1` | `C:\Windows\Setup\Scripts\` | Extraído do XML. Remove os apps Xbox e o Microsoft Solitaire Collection. | Não |
 | `DefaultUser.ps1` | `C:\Windows\Setup\Scripts\` | Extraído do XML. Desliga a gravação de jogos (Game DVR) no perfil padrão de novos usuários. | Não |
 | `First-Logon.ps1` | `C:\Windows\Setup\Scripts\` | Extraído do XML. Roda no primeiro logon: zera o login automático, apaga o `unattend.xml` e abre o `Start-Provisioning.ps1` do pendrive. | Não |
 | `Specialize.log`, `RemovePackages.log`, `DefaultUser.log`, `First-Logon.log` | `C:\Windows\Setup\Scripts\` | Log de cada script acima | Não |
