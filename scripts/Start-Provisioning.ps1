@@ -1,8 +1,8 @@
 ﻿# Orquestrador da automação pós-instalação.
 #
 # Primeira execução: iniciado pelo First-Logon.ps1 embutido no autounattend.xml, a partir do pendrive.
-#   - copia os scripts, o config\apps.json e os instaladores de reserva (installers\) para
-#     C:\ProgramData\WorkstationProvisioning;
+#   - copia os scripts, os arquivos de config\ (apps.json, domain.json, corporate-apps.json, office-odt.xml)
+#     e os instaladores de reserva (installers\) para C:\ProgramData\WorkstationProvisioning;
 #   - registra uma tarefa agendada que reabre este script (cópia local) a cada logon do técnico,
 #     para o provisionamento continuar depois dos reboots do Windows Update;
 #   - guarda a senha do login automático (config\autologon.txt do pendrive) como segredo protegido do Windows:
@@ -29,7 +29,7 @@ $localScriptsDir = Join-Path $rootDir 'scripts'
 $taskPath = '\WorkstationProvisioning\'
 $taskName = 'Resume'
 
-$totalSteps              = 4
+$totalSteps              = 7
 $maxUpdateCycles         = 6
 $restartCountdownSeconds = 60
 
@@ -39,6 +39,9 @@ $credentialFile = Join-Path (Split-Path -Parent $PSScriptRoot) 'config\autologon
 
 # Ligado quando o computador vai reiniciar: a janela fecha sem pausa.
 $isRestarting = $false
+
+# Domínio esperado (config\domain.json, copiado do pendrive). Sem senha: o ingresso é feito pelo técnico.
+$domainConfigFile = Join-Path $rootDir 'config\domain.json'
 
 # Ligado quando a senha do login automático está guardada nesta máquina.
 $isAutoLogonAvailable = $false
@@ -57,6 +60,7 @@ $powerBackupFile = Join-Path $rootDir 'power-policy-backup.json'
 . (Join-Path $PSScriptRoot 'AutoLogon.ps1')
 . (Join-Path $PSScriptRoot 'AutoRestartPolicy.ps1')
 . (Join-Path $PSScriptRoot 'PowerPolicy.ps1')
+. (Join-Path $PSScriptRoot 'Install-CorporateSoftware.ps1')
 
 function Write-Log {
     param(
@@ -82,6 +86,28 @@ function Show-Step {
     Write-Host "  $title" -ForegroundColor Cyan
     Write-Host ('=' * 64) -ForegroundColor Cyan
     Write-Log "==== $title ===="
+}
+
+function Test-RunningFromUsb {
+    # Rodando a partir do pendrive (primeira execução)? Nas retomadas, roda da cópia local.
+    $sourceDir = (Resolve-Path -LiteralPath $PSScriptRoot).Path.TrimEnd('\')
+    return $sourceDir -ne $localScriptsDir
+}
+
+function Show-UsbRemovalNotice {
+    # Avisa que o pendrive não é mais necessário: os arquivos já foram copiados para o disco (Copy-ProvisioningFile)
+    # e a senha do login automático já foi guardada no Windows (etapa 1).
+    $usbRoot = Split-Path -Parent (Resolve-Path -LiteralPath $PSScriptRoot).Path
+    Write-Host ''
+    Write-Host ('-' * 64) -ForegroundColor Green
+    Write-Host "  O PENDRIVE ($usbRoot) JÁ PODE SER RETIRADO." -ForegroundColor Green
+    Write-Host "  Os arquivos do provisionamento já foram copiados para $rootDir." -ForegroundColor Green
+    if ($isAutoLogonAvailable) {
+        Write-Host '  A senha do login automático já está guardada no Windows.' -ForegroundColor Green
+    }
+    Write-Host '  Retirar agora também evita que um reinício abra o menu do pendrive em vez do Windows.' -ForegroundColor Green
+    Write-Host ('-' * 64) -ForegroundColor Green
+    Write-Log "Pendrive ($usbRoot) não é mais necessário: arquivos copiados para $rootDir."
 }
 
 function Show-NetworkHelp {
@@ -341,15 +367,18 @@ function Copy-ProvisioningFile {
     Copy-Item -Path (Join-Path $sourceDir '*') -Destination $localScriptsDir -Recurse -Force
     Write-Log "Scripts copiados de $sourceDir para $localScriptsDir."
 
-    $appsConfig = Join-Path $sourceRoot 'config\apps.json'
-    if (Test-Path -LiteralPath $appsConfig) {
-        $localConfigDir = Join-Path $RootDir 'config'
-        New-Item -ItemType Directory -Force -Path $localConfigDir | Out-Null
-        Copy-Item -LiteralPath $appsConfig -Destination $localConfigDir -Force
-        Write-Log "Lista de aplicativos copiada: $appsConfig."
-    }
-    else {
-        Write-Log "Lista de aplicativos não encontrada no pendrive: $appsConfig." -Level WARN
+    # Arquivos de configuração (o config\autologon.txt, com a senha, NUNCA é copiado).
+    $localConfigDir = Join-Path $RootDir 'config'
+    New-Item -ItemType Directory -Force -Path $localConfigDir | Out-Null
+    foreach ($configName in 'apps.json', 'domain.json', 'corporate-apps.json', 'office-odt.xml') {
+        $configSource = Join-Path $sourceRoot "config\$configName"
+        if (Test-Path -LiteralPath $configSource) {
+            Copy-Item -LiteralPath $configSource -Destination $localConfigDir -Force
+            Write-Log "Configuração copiada: $configSource."
+        }
+        else {
+            Write-Log "Configuração não encontrada no pendrive: $configSource." -Level WARN
+        }
     }
 
     $installers = Join-Path $sourceRoot 'installers'
@@ -394,6 +423,12 @@ function Initialize-AutoLogon {
     # reinício: o do orquestrador, o do próprio Windows Update ou um manual.
     # Falhas não interrompem o provisionamento: o técnico passa a fazer login manualmente.
     try {
+        # Diagnóstico: como o login automático estava antes de ser renovado. AutoLogonCount menor que
+        # $autoLogonCount indica que o último login foi automático.
+        $previous = Get-AutoLogonState
+        Write-Log ('Login automático encontrado ao iniciar: AutoAdminLogon={0}, DefaultDomainName={1}, DefaultUserName={2}, AutoLogonCount={3}.' -f `
+            $previous.AutoAdminLogon, $previous.DefaultDomainName, $previous.DefaultUserName, $previous.AutoLogonCount)
+
         if (Remove-PlainTextAutoLogonPassword) {
             Write-Log 'Senha em texto puro encontrada e removida do registro (Winlogon\DefaultPassword).' -Level WARN
         }
@@ -567,6 +602,285 @@ function Invoke-WindowsUpdateStep {
     }
 }
 
+function Get-DomainConfig {
+    # Domínio esperado e padrão do nome do computador (config\domain.json).
+    if (-not (Test-Path -LiteralPath $domainConfigFile)) {
+        throw "Configuração do domínio não encontrada: $domainConfigFile"
+    }
+    try {
+        $domainConfig = Get-Content -LiteralPath $domainConfigFile -Raw -Encoding UTF8 | ConvertFrom-Json
+    }
+    catch {
+        throw "Configuração do domínio inválida (JSON): $domainConfigFile. $($_.Exception.Message)"
+    }
+    if ([string]::IsNullOrWhiteSpace($domainConfig.domain)) {
+        throw "Configuração do domínio sem o campo 'domain': $domainConfigFile"
+    }
+    return [pscustomobject] @{
+        Domain      = $domainConfig.domain.Trim()
+        NamePattern = [string] $domainConfig.computerNamePattern
+        NameExample = [string] $domainConfig.computerNameExample
+        TargetOu    = [string] $domainConfig.targetOu
+        TargetOuName = [string] $domainConfig.targetOuName
+    }
+}
+
+function Get-ComputerDistinguishedName {
+    # Localização do computador no AD, gravada pelo Windows a cada processamento das políticas de grupo.
+    # Não exige credencial. Atualizada pelo gpupdate depois que o computador é movido de OU.
+    $state = Get-ItemProperty -LiteralPath 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Group Policy\State\Machine' -ErrorAction SilentlyContinue
+    if ($null -eq $state) {
+        return ''
+    }
+    return [string] $state.'Distinguished-Name'
+}
+
+function Update-ComputerPolicy {
+    # Atualiza as políticas do computador. "echo N" responde "não" se o gpupdate perguntar sobre reiniciar.
+    Write-Log 'Atualizando as políticas de grupo do computador (gpupdate)...'
+    $output = cmd.exe /c 'echo N | gpupdate /target:computer /force' 2>&1
+    Write-Log ('gpupdate terminou com exit code {0}: {1}' -f $LASTEXITCODE, (($output | Where-Object { "$_".Trim() }) -join ' '))
+}
+
+function Test-ComputerInOu {
+    param(
+        [Parameter(Mandatory)] [AllowEmptyString()] [string] $DistinguishedName,
+        [Parameter(Mandatory)] [string] $TargetOu
+    )
+    # O computador está diretamente na OU: "CN=<nome>,<OU de destino>".
+    return $DistinguishedName -match ('^CN=[^,]+,' + [regex]::Escape($TargetOu) + '$')
+}
+
+function Show-OuMoveHelp {
+    param(
+        [Parameter(Mandatory)] $Config,
+        [Parameter(Mandatory)] [AllowEmptyString()] [string] $DistinguishedName
+    )
+    $current = if ($DistinguishedName) { $DistinguishedName } else { '(ainda não informada pelo Windows)' }
+    Write-Host ''
+    Write-Host ('=' * 64) -ForegroundColor Yellow
+    Write-Host "  MOVA O COMPUTADOR $($env:COMPUTERNAME) PARA A OU `"$($Config.TargetOuName)`" NO AD." -ForegroundColor Yellow
+    Write-Host ('=' * 64) -ForegroundColor Yellow
+    Write-Host ''
+    Write-Host "  Local atual: $current" -ForegroundColor Yellow
+    Write-Host "  Destino:     $($Config.TargetOu)" -ForegroundColor Yellow
+    Write-Host ''
+    Write-Host '  Como mover:' -ForegroundColor Yellow
+    Write-Host '    1. No DC01, abra "Usuários e Computadores do Active Directory".' -ForegroundColor Yellow
+    Write-Host "    2. Localize o computador $($env:COMPUTERNAME) (normalmente na pasta Computers)." -ForegroundColor Yellow
+    Write-Host "    3. Clique com o botão direito > Mover... > LAQUILA > $($Config.TargetOuName) > OK." -ForegroundColor Yellow
+    Write-Host '    4. Volte a esta janela e pressione ENTER.' -ForegroundColor Yellow
+    Write-Host ''
+    Write-Host '  O provisionamento atualiza as políticas e confere a mudança.' -ForegroundColor Yellow
+    Write-Host ''
+}
+
+function Confirm-ComputerOu {
+    # Etapa 6: o computador precisa estar na OU de destino antes dos softwares corporativos (procedimento da
+    # empresa: as políticas de grupo são aplicadas pela OU). A mudança é feita pelo técnico no DC01;
+    # o script confere e, enquanto não estiver na OU, avisa e espera de novo.
+    $config = Get-DomainConfig
+    if ([string]::IsNullOrWhiteSpace($config.TargetOu)) {
+        throw "Configuração do domínio sem o campo 'targetOu': $domainConfigFile"
+    }
+
+    $distinguishedName = Get-ComputerDistinguishedName
+    if (-not (Test-ComputerInOu -DistinguishedName $distinguishedName -TargetOu $config.TargetOu)) {
+        # A localização gravada pode estar desatualizada: atualiza as políticas antes de pedir a mudança.
+        Update-ComputerPolicy
+        $distinguishedName = Get-ComputerDistinguishedName
+    }
+
+    while (-not (Test-ComputerInOu -DistinguishedName $distinguishedName -TargetOu $config.TargetOu)) {
+        Write-Log "O computador não está na OU de destino. Local atual: $distinguishedName" -Level WARN
+        Show-OuMoveHelp -Config $config -DistinguishedName $distinguishedName
+        $null = Read-Host '  Pressione ENTER depois de mover o computador'
+        Update-ComputerPolicy
+        $distinguishedName = Get-ComputerDistinguishedName
+    }
+    Write-Log "Computador na OU de destino: $distinguishedName."
+}
+
+function Test-ComputerNamePattern {
+    # Confere o nome definido pelo técnico com o padrão da empresa. Só gera aviso: o nome é manual.
+    param(
+        [Parameter(Mandatory)] [string] $ComputerName,
+        [Parameter(Mandatory)] $Config
+    )
+    if ([string]::IsNullOrWhiteSpace($Config.NamePattern) -or $ComputerName -match $Config.NamePattern) {
+        return
+    }
+    Write-Log ("O nome do computador '{0}' está fora do padrão da empresa (ex.: {1}). Confira antes de entregar a máquina." -f `
+        $ComputerName, $Config.NameExample) -Level WARN
+}
+
+function Get-PendingDomainJoin {
+    # O ingresso feito no sysdm.cpl só vale depois do reinício. Antes dele, o Windows já registra:
+    #   - Netlogon\JoinDomain: ingresso no domínio pendente;
+    #   - ComputerName\ComputerName: o novo nome (o nome em uso fica em ActiveComputerName).
+    $nameKey = 'HKLM:\SYSTEM\CurrentControlSet\Control\ComputerName'
+    return [pscustomobject] @{
+        IsJoinPending   = Test-Path -LiteralPath 'HKLM:\SYSTEM\CurrentControlSet\Services\Netlogon\JoinDomain'
+        NewComputerName = [string] (Get-ItemProperty -LiteralPath "$nameKey\ComputerName").ComputerName
+        ActiveName      = [string] (Get-ItemProperty -LiteralPath "$nameKey\ActiveComputerName").ComputerName
+    }
+}
+
+function Repair-DomainJoinAutoLogon {
+    # O ingresso no domínio pode gravar DefaultDomainName = <domínio> DEPOIS que o login automático foi
+    # ajustado; aí o Windows tentaria entrar como <domínio>\<conta local> e o login automático falharia.
+    # Confere e, se o valor mudou, reconfigura. Retorna $true se o login automático está correto.
+    param([Parameter(Mandatory)] [string] $NewComputerName)
+    try {
+        if (Test-AutoLogonTarget -UserName $env:USERNAME -ComputerName $NewComputerName) {
+            return $true
+        }
+        $state = Get-AutoLogonState
+        Write-Log ('O Windows alterou o login automático (AutoAdminLogon={0}, DefaultDomainName={1}); reconfigurando para {2}\{3}.' -f `
+            $state.AutoAdminLogon, $state.DefaultDomainName, $NewComputerName, $env:USERNAME) -Level WARN
+        Enable-AutoLogon -UserName $env:USERNAME -LogonCount $autoLogonCount -ComputerName $NewComputerName
+        return $true
+    }
+    catch {
+        Write-Log "Não foi possível conferir o login automático: $($_.Exception.Message)" -Level WARN
+        return $false
+    }
+}
+
+function Restart-ForDomainJoin {
+    # Reconfigura o login automático com o NOVO nome do computador e reinicia para concluir o ingresso.
+    # Durante a contagem e logo antes do reinício, confere se o Windows não alterou o login automático.
+    param([Parameter(Mandatory)] [string] $NewComputerName)
+
+    $isAutoLogonEnabled = $false
+    if ($isAutoLogonAvailable) {
+        try {
+            Enable-AutoLogon -UserName $env:USERNAME -LogonCount $autoLogonCount -ComputerName $NewComputerName
+            $isAutoLogonEnabled = $true
+            Write-Log "Login automático reconfigurado para o novo nome do computador ($NewComputerName\$($env:USERNAME))."
+        }
+        catch {
+            Write-Log "Não foi possível reconfigurar o login automático: $($_.Exception.Message)" -Level WARN
+        }
+    }
+
+    Write-Host ''
+    Write-Host "  Ingresso no domínio detectado (novo nome do computador: $NewComputerName)." -ForegroundColor Green
+    Write-Host "  O computador será reiniciado em $restartCountdownSeconds segundos para concluir o ingresso." -ForegroundColor Yellow
+    if ($isAutoLogonEnabled) {
+        Write-Host "  Depois do reinício, o Windows entra sozinho na conta local $($env:USERNAME) e o provisionamento continua." -ForegroundColor Yellow
+    }
+    else {
+        Write-Host "  Depois do reinício, faça login na conta local: $NewComputerName\$($env:USERNAME) (ou .\$($env:USERNAME))." -ForegroundColor Yellow
+    }
+    Write-Host ''
+
+    for ($remaining = $restartCountdownSeconds; $remaining -gt 0; $remaining--) {
+        Write-Progress -Activity 'Reiniciando para concluir o ingresso no domínio' -Status "Reinício em $remaining s" -SecondsRemaining $remaining
+        if ($isAutoLogonEnabled) {
+            [void] (Repair-DomainJoinAutoLogon -NewComputerName $NewComputerName)
+        }
+        Start-Sleep -Seconds 1
+    }
+    Write-Progress -Activity 'Reiniciando para concluir o ingresso no domínio' -Completed
+
+    if ($isAutoLogonEnabled -and (Repair-DomainJoinAutoLogon -NewComputerName $NewComputerName)) {
+        $state = Get-AutoLogonState
+        Write-Log ('Login automático conferido antes do reinício: {0}\{1}, AutoLogonCount={2}.' -f $state.DefaultDomainName, $state.DefaultUserName, $state.AutoLogonCount)
+    }
+    Write-Log 'Reiniciando o computador para concluir o ingresso no domínio.'
+    $script:isRestarting = $true
+    Restart-Computer -Force
+}
+
+function Wait-DomainJoin {
+    # Aguarda, sem limite de tempo, o técnico ingressar no domínio pelo sysdm.cpl.
+    # Ao detectar o ingresso pendente, reinicia com o login automático já ajustado ao novo nome.
+    param(
+        [Parameter(Mandatory)] $Config,
+        [int] $IntervalSeconds = 2
+    )
+    while ($true) {
+        $pending = Get-PendingDomainJoin
+        if ($pending.IsJoinPending) {
+            Write-Progress -Activity 'Aguardando o ingresso no domínio' -Completed
+            Write-Log "Ingresso no domínio detectado. Nome atual: $($pending.ActiveName); novo nome: $($pending.NewComputerName)."
+            Test-ComputerNamePattern -ComputerName $pending.NewComputerName -Config $Config
+            Restart-ForDomainJoin -NewComputerName $pending.NewComputerName
+            return
+        }
+        Write-Progress -Activity 'Aguardando o ingresso no domínio' `
+            -Status "Última verificação às $(Get-Date -Format 'HH:mm:ss'). Faça o ingresso pelo sysdm.cpl (instruções acima)."
+        Start-Sleep -Seconds $IntervalSeconds
+    }
+}
+
+function Get-DomainMembership {
+    # Situação atual da máquina: está em um domínio? Qual? Com que nome?
+    $computerSystem = Get-CimInstance -ClassName Win32_ComputerSystem
+    return [pscustomobject] @{
+        IsJoined     = [bool] $computerSystem.PartOfDomain
+        Domain       = [string] $computerSystem.Domain
+        ComputerName = [string] $computerSystem.Name
+    }
+}
+
+function Show-DomainJoinHelp {
+    param(
+        [Parameter(Mandatory)] $Config,
+        [Parameter(Mandatory)] $Membership
+    )
+    $domain  = $Config.Domain
+    $example = if ($Config.NameExample) { " (ex.: $($Config.NameExample))" } else { '' }
+    $current = if ($Membership.IsJoined) { "domínio $($Membership.Domain)" } else { "grupo de trabalho $($Membership.Domain)" }
+
+    Write-Host ''
+    Write-Host ('=' * 64) -ForegroundColor Yellow
+    Write-Host "  PARA CONTINUAR O PROVISIONAMENTO, É NECESSÁRIO INGRESSAR NO DOMÍNIO $($domain.ToUpper())." -ForegroundColor Yellow
+    Write-Host ('=' * 64) -ForegroundColor Yellow
+    Write-Host ''
+    Write-Host "  Situação atual: computador $($Membership.ComputerName), no $current." -ForegroundColor Yellow
+    Write-Host ''
+    Write-Host '  Como ingressar:' -ForegroundColor Yellow
+    Write-Host '    1. Conecte o cabo da rede corporativa.' -ForegroundColor Yellow
+    Write-Host '    2. Pressione Win+R, digite sysdm.cpl e pressione ENTER.' -ForegroundColor Yellow
+    Write-Host '    3. Na aba "Nome do Computador", clique em "Alterar...".' -ForegroundColor Yellow
+    Write-Host "    4. Em `"Nome do computador`", digite o nome no padrão da empresa$example." -ForegroundColor Yellow
+    Write-Host "    5. Em `"Membro de`", marque `"Domínio`", digite $domain e clique em OK." -ForegroundColor Yellow
+    Write-Host '    6. Informe o usuário e a senha com permissão para ingressar computadores no domínio.' -ForegroundColor Yellow
+    Write-Host '    7. Quando o Windows pedir para reiniciar, clique em "Reiniciar Mais Tarde".' -ForegroundColor Yellow
+    Write-Host '       Esta janela detecta o ingresso, ajusta o login automático ao novo nome' -ForegroundColor Yellow
+    Write-Host '       e reinicia o computador sozinha.' -ForegroundColor Yellow
+    Write-Host ''
+    Write-Host '  Depois do reinício, o provisionamento confere o ingresso e continua sozinho.' -ForegroundColor Yellow
+    Write-Host "  Se o Windows não entrar sozinho, faça login na conta local: .\$($env:USERNAME)" -ForegroundColor Yellow
+    Write-Host ''
+}
+
+function Confirm-DomainMembership {
+    # Etapa de domínio. Por enquanto o ingresso (e o novo nome) são feitos pelo técnico.
+    # Retorna $true se a máquina está no domínio esperado. Senão, mostra as instruções e aguarda o
+    # ingresso; ao detectá-lo, reinicia (e retorna $false com $isRestarting ligado).
+    $config     = Get-DomainConfig
+    $membership = Get-DomainMembership
+
+    if ($membership.IsJoined -and $membership.Domain -eq $config.Domain) {
+        Write-Log "Máquina no domínio $($membership.Domain) (computador $($membership.ComputerName))."
+        Test-ComputerNamePattern -ComputerName $membership.ComputerName -Config $config
+        return $true
+    }
+
+    if ($membership.IsJoined) {
+        Write-Log "A máquina está no domínio $($membership.Domain), mas o esperado é $($config.Domain)." -Level WARN
+    }
+    else {
+        Write-Log "A máquina ainda não está no domínio $($config.Domain) (grupo de trabalho $($membership.Domain)). Aguardando o ingresso pelo técnico." -Level WARN
+    }
+    Show-DomainJoinHelp -Config $config -Membership $membership
+    Wait-DomainJoin -Config $config
+    return $false
+}
+
 function Start-Provisioning {
     Initialize-ProvisioningWindow
 
@@ -598,6 +912,9 @@ function Start-Provisioning {
     # Roda a cada execução: na primeira importa a senha do pendrive; nas retomadas só confirma que ela continua guardada.
     Show-Step -Number 1 -Name 'Login automático'
     Initialize-AutoLogon
+    if (Test-RunningFromUsb) {
+        Show-UsbRemovalNotice
+    }
 
     # A verificação de rede não é marcada como concluída: roda a cada retomada,
     # porque a conexão pode ter caído durante o reboot.
@@ -627,6 +944,47 @@ function Start-Provisioning {
         Complete-Step -State $state -Name 'Install-Applications'
     }
 
+    # Etapa 5: roda a cada execução até a máquina estar no domínio. O ingresso é feito pelo técnico;
+    # a etapa aguarda, reinicia ao detectá-lo e, depois do reinício, confere de novo.
+    Show-Step -Number 5 -Name 'Domínio'
+    if (Test-StepCompleted -State $state -Name 'Join-Domain') {
+        Write-Log 'Etapa já concluída anteriormente.'
+    }
+    elseif (Confirm-DomainMembership) {
+        Complete-Step -State $state -Name 'Join-Domain'
+    }
+    else {
+        # Ingresso detectado: o computador está reiniciando.
+        return
+    }
+
+    # Etapa 6: o técnico move o computador para a OU de destino no DC01; o script confere.
+    Show-Step -Number 6 -Name 'Local no AD (OU)'
+    if (Test-StepCompleted -State $state -Name 'Move-ComputerOu') {
+        Write-Log 'Etapa já concluída anteriormente.'
+    }
+    else {
+        Confirm-ComputerOu
+        Complete-Step -State $state -Name 'Move-ComputerOu'
+    }
+
+    # Etapa 7: softwares corporativos. Roda nesta janela (caixa de credencial e confirmação do antivírus).
+    # Falha em item obrigatório interrompe o provisionamento; para tentar de novo, basta logoff e login:
+    # os itens já instalados são pulados.
+    Show-Step -Number 7 -Name 'Softwares corporativos'
+    if (Test-StepCompleted -State $state -Name 'Install-CorporateSoftware') {
+        Write-Log 'Etapa já concluída anteriormente.'
+    }
+    else {
+        $domainPrefix = (Get-DomainConfig).Domain.Split('.')[0].ToUpperInvariant()
+        $isCorporateOk = Install-CorporateSoftware -ConfigFile (Join-Path $rootDir 'config\corporate-apps.json') `
+            -LogFile (Join-Path $logDir 'corporate-software.log') -WorkDir (Join-Path $rootDir 'Temp') -DomainPrefix $domainPrefix
+        if (-not $isCorporateOk) {
+            throw 'Softwares corporativos obrigatórios não foram instalados (veja o resumo acima).'
+        }
+        Complete-Step -State $state -Name 'Install-CorporateSoftware'
+    }
+
     $state.Status = 'Completed'
     Save-ProvisioningState -State $state
     Unregister-ResumeTask
@@ -654,7 +1012,7 @@ try {
         Write-Host ''
         Write-Host ('=' * 64) -ForegroundColor Green
         Write-Host '  PROVISIONAMENTO CONCLUÍDO.' -ForegroundColor Green
-        Write-Host '  As próximas etapas (domínio, configurações) ainda não foram implementadas.' -ForegroundColor Green
+        Write-Host '  As próximas etapas (configurações) ainda não foram implementadas.' -ForegroundColor Green
         Write-Host "  Log: $logFile" -ForegroundColor Green
         Write-Host ('=' * 64) -ForegroundColor Green
     }

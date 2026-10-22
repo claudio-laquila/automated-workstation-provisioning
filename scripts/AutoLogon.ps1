@@ -249,7 +249,10 @@ function Enable-AutoLogon {
     # (qualquer reinício: do script, do Windows Update ou manual). O Windows desconta 1 a cada login automático.
     param(
         [Parameter(Mandatory)] [string] $UserName,
-        [ValidateRange(1, 99)] [int] $LogonCount = 10
+        [ValidateRange(1, 99)] [int] $LogonCount = 10,
+        # Nome do computador da conta LOCAL. Ao ingressar no domínio com um novo nome, passe o novo nome
+        # (que só vale depois do reinício): com o nome antigo, o login automático falharia.
+        [ValidateNotNullOrEmpty()] [string] $ComputerName = $env:COMPUTERNAME
     )
 
     Add-AutoLogonNativeMethod
@@ -261,9 +264,31 @@ function Enable-AutoLogon {
     [WorkstationProvisioning.LsaSecret]::Set($winlogonSecretKey, $password)
     New-ItemProperty -Path $winlogonKey -Name 'AutoAdminLogon'    -Value '1'                -PropertyType String -Force | Out-Null
     New-ItemProperty -Path $winlogonKey -Name 'DefaultUserName'   -Value $UserName          -PropertyType String -Force | Out-Null
-    New-ItemProperty -Path $winlogonKey -Name 'DefaultDomainName' -Value $env:COMPUTERNAME  -PropertyType String -Force | Out-Null
+    New-ItemProperty -Path $winlogonKey -Name 'DefaultDomainName' -Value $ComputerName      -PropertyType String -Force | Out-Null
     New-ItemProperty -Path $winlogonKey -Name 'AutoLogonCount'    -Value $LogonCount        -PropertyType DWord  -Force | Out-Null
     [void] (Remove-PlainTextAutoLogonPassword)
+}
+
+function Get-AutoLogonState {
+    # Valores atuais do login automático no Winlogon (sem a senha), para diagnóstico e conferência.
+    $winlogon = Get-ItemProperty -Path $winlogonKey
+    $count = $winlogon.PSObject.Properties['AutoLogonCount']
+    return [pscustomobject] @{
+        AutoAdminLogon    = [string] $winlogon.AutoAdminLogon
+        DefaultUserName   = [string] $winlogon.DefaultUserName
+        DefaultDomainName = [string] $winlogon.DefaultDomainName
+        AutoLogonCount    = if ($count) { [int] $count.Value } else { $null }
+    }
+}
+
+function Test-AutoLogonTarget {
+    # O login automático está ativo para a conta e o nome de computador esperados?
+    param(
+        [Parameter(Mandatory)] [string] $UserName,
+        [Parameter(Mandatory)] [string] $ComputerName
+    )
+    $state = Get-AutoLogonState
+    return ($state.AutoAdminLogon -eq '1' -and $state.DefaultUserName -eq $UserName -and $state.DefaultDomainName -eq $ComputerName)
 }
 
 function Disable-AutoLogon {
