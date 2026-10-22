@@ -3,3 +3,6 @@ config/autologon.txt
 
 # Instaladores de reserva dos aplicativos (MSI/EXE, ~200 MB). Ficam somente no pendrive.
 installers/
+
+# Relatórios do tools\Get-ProvisioningDiagnostic.ps1 (dados da máquina testada). Ficam somente no pendrive.
+logs/diagnostico-*.txt
