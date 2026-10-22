@@ -1,0 +1,138 @@
+{
+    "shares": [
+        "\\\\marketing\\softwares",
+        "\\\\fs01\\Everest30"
+    ],
+    "items": [
+        {
+            "id": "office",
+            "name": "Microsoft 365 Apps (Office)",
+            "type": "odt",
+            "path": "\\\\marketing\\softwares\\Office 2016\\Office365-x64\\ODT\\setup.exe",
+            "odtConfig": "office-odt.xml",
+            "detect": { "path": "C:\\Program Files\\Microsoft Office\\root\\Office16\\WINWORD.EXE", "minimumVersion": "16.0.17000.0" },
+            "required": true
+        },
+        {
+            "id": "withsecure",
+            "name": "WithSecure (antivírus)",
+            "type": "exe",
+            "pathPattern": "\\\\marketing\\softwares\\Antivirus\\F-Secure\\ElementsAgentInstaller*E03G*.exe",
+            "arguments": "--silent",
+            "confirmLicense": true,
+            "detect": { "displayName": "WithSecure*" },
+            "required": true
+        },
+        {
+            "id": "odbc11",
+            "name": "Microsoft ODBC Driver 11 for SQL Server (Client 11)",
+            "type": "msi",
+            "path": "\\\\fs01\\Everest30\\msodbcsql-client-11.msi",
+            "arguments": "IACCEPTMSODBCSQLLICENSETERMS=YES",
+            "detect": { "displayName": "Microsoft ODBC Driver 11 for SQL Server" },
+            "required": true
+        },
+        {
+            "id": "everest30",
+            "name": "Everest 3.0",
+            "type": "bat",
+            "path": "\\\\fs01\\Everest30\\Instala_everest30.bat",
+            "detect": { "path": "C:\\Exec_Laquila\\EVEREST_30590" },
+            "required": true
+        },
+        {
+            "id": "everest211-files",
+            "name": "Everest 2.11 (arquivos em C:\\everest1)",
+            "type": "copy-folder",
+            "source": "\\\\marketing\\softwares\\BDE\\everest1",
+            "destination": "C:\\everest1",
+            "detect": { "path": "C:\\everest1\\MEU.exe" },
+            "required": true
+        },
+        {
+            "id": "ntwdblib",
+            "name": "ntwdblib.dll (SysWOW64)",
+            "type": "copy-file",
+            "source": "\\\\marketing\\softwares\\BDE\\DLLS\\ntwdblib.dll",
+            "destination": "C:\\Windows\\SysWOW64\\ntwdblib.dll",
+            "detect": { "path": "C:\\Windows\\SysWOW64\\ntwdblib.dll" },
+            "required": true
+        },
+        {
+            "id": "bde-info-52",
+            "name": "Client BDE Update v 5.2 (BDE Information Utility)",
+            "type": "exe",
+            "path": "\\\\marketing\\softwares\\BDE\\Client BDE Update v 5.2\\BDEInfoSetup.EXE",
+            "arguments": "/s",
+            "prompts": [
+                { "text": "must be restarted", "button": "Cancel", "restartPending": true }
+            ],
+            "detect": { "displayName": "*BDE Information*" },
+            "required": true
+        },
+        {
+            "id": "bde-511",
+            "name": "Client BDE Install v 5.1.1 Full (Borland Database Engine)",
+            "type": "exe",
+            "path": "\\\\marketing\\softwares\\BDE\\Client BDE Install v 5.1.1 Full\\setup.exe",
+            "arguments": "/VERYSILENT /SUPPRESSMSGBOXES /NORESTART /SP-",
+            "prompts": [
+                { "text": "will be installed/upgraded in the following directory", "button": "OK",
+                  "setText": "C:\\Program Files (x86)\\Borland\\Common Files\\BDE" },
+                { "text": "not enough space on drive", "button": "Yes" },
+                { "text": "directory does not exist", "button": "Yes" }
+            ],
+            "detect": { "path": [
+                "C:\\Program Files (x86)\\Common Files\\Borland Shared\\BDE\\idapi32.dll",
+                "C:\\Program Files (x86)\\Borland\\Common Files\\BDE\\idapi32.dll"
+            ] },
+            "required": true
+        },
+        {
+            "id": "bde-config",
+            "name": "Configuração do BDE (IDAPI32.CFG)",
+            "type": "copy-file",
+            "source": "\\\\marketing\\softwares\\BDE\\Arquivo de configuração\\IDAPI32.CFG",
+            "destinationRegistry": { "key": "HKLM:\\SOFTWARE\\WOW6432Node\\Borland\\Database Engine", "value": "CONFIGFILE01" },
+            "required": true
+        },
+        {
+            "id": "everest211-shortcuts",
+            "name": "Atalhos Everest e EverestLite (área de trabalho pública)",
+            "type": "shortcuts",
+            "destination": "C:\\Users\\Public\\Desktop",
+            "shortcuts": [
+                { "name": "Everest",     "target": "C:\\everest1\\MEU.exe" },
+                { "name": "EverestLite", "target": "C:\\everest1\\MeuLite.exe" }
+            ],
+            "required": true
+        },
+        {
+            "id": "forticlient-vpn",
+            "name": "FortiClient VPN 7.2.13",
+            "type": "msi",
+            "path": "C:\\ProgramData\\WorkstationProvisioning\\installers\\forticlient\\FortiClientVPN-7.2.13.1284.msi",
+            "sha256": "1CCAD597420E3324AE38B7A1D571303EF790B516B2F673FC483D5DF5124F57DB",
+            "arguments": "REBOOT=ReallySuppress",
+            "detect": { "displayName": "FortiClient VPN" },
+            "required": true
+        },
+        {
+            "id": "forticlient-vpn-config",
+            "name": "VPN Laquila (FortiClient: 201.48.98.109, porta 10443)",
+            "type": "registry",
+            "key": "HKLM:\\SOFTWARE\\Fortinet\\FortiClient\\Sslvpn\\Tunnels\\Laquila",
+            "values": [
+                { "name": "Description",          "value": "",                    "kind": "String" },
+                { "name": "Server",               "value": "201.48.98.109:10443", "kind": "String" },
+                { "name": "ServerSorted",         "value": "201.48.98.109:10443", "kind": "String" },
+                { "name": "promptusername",       "value": 1,                     "kind": "DWord" },
+                { "name": "dual_stack",           "value": 0,                     "kind": "DWord" },
+                { "name": "sso_enabled",          "value": 0,                     "kind": "DWord" },
+                { "name": "use_external_browser", "value": 0,                     "kind": "DWord" },
+                { "name": "azure_auto_login",     "value": 0,                     "kind": "DWord" }
+            ],
+            "required": true
+        }
+    ]
+}

@@ -1,0 +1,16 @@
+<!--
+  Configuração do Office Deployment Tool (ODT) usada pela etapa 7 (softwares corporativos).
+  Mesmo produto do installOfficeBusRet64.xml do servidor (\\marketing\softwares\Office 2016\Office365-x64\ODT)
+  e do OfficeSetup.exe usado manualmente: Microsoft 365 Apps for business (O365BusinessRetail), 64 bits, pt-br.
+  Acrescentado em relação ao original: instalação sem janelas e com a licença aceita automaticamente.
+  A ativação é feita depois, no login do usuário com a conta Microsoft 365.
+-->
+<Configuration>
+  <Add OfficeClientEdition="64">
+    <Product ID="O365BusinessRetail">
+      <Language ID="pt-br" />
+    </Product>
+  </Add>
+  <Display Level="None" AcceptEULA="TRUE" />
+  <Property Name="FORCEAPPSHUTDOWN" Value="TRUE" />
+</Configuration>
